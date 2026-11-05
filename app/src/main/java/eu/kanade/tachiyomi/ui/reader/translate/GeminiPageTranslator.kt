@@ -27,6 +27,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -45,8 +47,8 @@ class GeminiPageTranslator(
 
     private val client by lazy {
         networkHelper.client.newBuilder()
-            .readTimeout(120, TimeUnit.SECONDS)
-            .callTimeout(180, TimeUnit.SECONDS)
+            .readTimeout(45, TimeUnit.SECONDS)
+            .callTimeout(60, TimeUnit.SECONDS)
             .build()
     }
 
@@ -72,8 +74,9 @@ class GeminiPageTranslator(
     }
 
     /**
-     * Gemini often answers 503 (model overloaded) or 429 (rate limited) for a short while. Retry a
-     * few times with a growing pause, then try the fallback models before giving up.
+     * Gemini often answers 503 (model overloaded) or 429 (rate limited) for a short while. Instead
+     * of waiting for the same model, move on to the next one right away, so the page isn't delayed
+     * much before the other translators are tried.
      */
     private suspend fun requestWithRetries(
         apiKey: String,
@@ -83,20 +86,41 @@ class GeminiPageTranslator(
     ): List<TranslatedBlock> {
         val models = (listOf(model) + FALLBACK_MODELS).distinct()
         var lastError: TemporaryTranslationException? = null
-        for (candidate in models) {
-            repeat(RETRIES_PER_MODEL) { attempt ->
-                try {
-                    return request(apiKey, candidate, target, jpeg)
-                } catch (e: TemporaryTranslationException) {
-                    lastError = e
-                    if (attempt < RETRIES_PER_MODEL - 1) delay(RETRY_DELAY_MS * (attempt + 1))
-                }
+        models.forEachIndexed { index, candidate ->
+            try {
+                return request(apiKey, candidate, target, jpeg)
+            } catch (e: TemporaryTranslationException) {
+                lastError = e
+                if (index < models.lastIndex) delay(RETRY_DELAY_MS)
             }
         }
         throw lastError ?: TranslationException("Gemini is not available")
     }
 
+    /** Models that refused the thinking setting, to not send it to them again. */
+    private val modelsWithoutThinkingConfig: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     private fun request(apiKey: String, model: String, target: String, jpeg: ByteArray): List<TranslatedBlock> {
+        // Thinking makes answers much slower and isn't needed to translate bubbles. Pro models
+        // can't turn it off.
+        val disableThinking = "pro" !in model && model !in modelsWithoutThinkingConfig
+        return try {
+            request(apiKey, model, target, jpeg, disableThinking)
+        } catch (e: ThinkingConfigRejected) {
+            modelsWithoutThinkingConfig += model
+            request(apiKey, model, target, jpeg, disableThinking = false)
+        }
+    }
+
+    private class ThinkingConfigRejected : Exception()
+
+    private fun request(
+        apiKey: String,
+        model: String,
+        target: String,
+        jpeg: ByteArray,
+        disableThinking: Boolean,
+    ): List<TranslatedBlock> {
         val body = buildJsonObject {
             putJsonArray("contents") {
                 addJsonObject {
@@ -114,6 +138,9 @@ class GeminiPageTranslator(
             }
             putJsonObject("generationConfig") {
                 put("temperature", 0.2)
+                if (disableThinking) {
+                    putJsonObject("thinkingConfig") { put("thinkingBudget", 0) }
+                }
                 put("responseMimeType", "application/json")
                 putJsonObject("responseSchema") {
                     put("type", "ARRAY")
@@ -143,13 +170,22 @@ class GeminiPageTranslator(
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
-        client.newCall(request).execute().use { response ->
+        val response = try {
+            client.newCall(request).execute()
+        } catch (e: IOException) {
+            // Timeouts and dropped connections: worth trying another model or translator
+            throw TemporaryTranslationException("Gemini $model: ${e.message ?: e.javaClass.simpleName}")
+        }
+        response.use {
             val text = response.body.string()
             if (!response.isSuccessful) {
                 val message = runCatching {
                     json.parseToJsonElement(text).jsonObject["error"]?.jsonObject
                         ?.get("message")?.jsonPrimitive?.contentOrNull
                 }.getOrNull()
+                if (disableThinking && response.code == 400 && message?.contains("thinking", true) == true) {
+                    throw ThinkingConfigRejected()
+                }
                 val error = "Gemini $model (HTTP ${response.code}): ${message ?: response.message}"
                 if (response.code in TEMPORARY_ERROR_CODES) throw TemporaryTranslationException(error)
                 throw TranslationException(error)
@@ -219,9 +255,8 @@ class GeminiPageTranslator(
         )
         private val FALLBACK_MODELS = listOf("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash")
         private val TEMPORARY_ERROR_CODES = setOf(429, 500, 502, 503, 504)
-        private const val RETRIES_PER_MODEL = 2
-        private const val RETRY_DELAY_MS = 2_000L
+        private const val RETRY_DELAY_MS = 500L
         private const val API_URL = "https://generativelanguage.googleapis.com/v1beta"
-        private const val JPEG_QUALITY = 90
+        private const val JPEG_QUALITY = 85
     }
 }

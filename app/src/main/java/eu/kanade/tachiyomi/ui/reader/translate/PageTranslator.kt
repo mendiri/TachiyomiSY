@@ -192,7 +192,7 @@ class PageTranslator(
     }
 
     companion object {
-        private const val MAX_WIDTH = 1536
+        private const val MAX_WIDTH = 1280
         private const val MAX_SLICE_HEIGHT = 3072
         private const val MIN_SLICE_HEIGHT = 768
         private const val MAX_DISPLAY_PIXELS = 12_000_000L

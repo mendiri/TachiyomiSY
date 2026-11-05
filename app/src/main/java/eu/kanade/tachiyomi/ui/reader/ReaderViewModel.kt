@@ -81,6 +81,7 @@ import exh.util.defaultReaderType
 import exh.util.mangaType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -1284,17 +1285,12 @@ class ReaderViewModel(
 
         viewModelScope.launch {
             val result = try {
-                // The page may still be loading, e.g. right after moving to it
-                withTimeoutOrNull(PAGE_LOAD_TIMEOUT) {
-                    page.statusFlow.first { it == Page.State.Ready || it is Page.State.Error }
-                }
-                val stream = page.stream
-                if (page.status != Page.State.Ready || stream == null) {
+                val outcome = translationJob(page).await()
+                if (outcome == null) {
                     TranslationResult.Error(context.stringResource(SYMR.strings.translation_page_not_loaded))
                 } else {
-                    val rightToLeft = state.value.viewer is R2LPagerViewer
-                    val outcome = pageTranslator.translate(stream, rightToLeft)
-                    translationCache[key] = outcome
+                    // Get the next page ready while this one is read
+                    adjacentPage(page, 1)?.let { prefetchTranslation(it) }
                     TranslationResult.Success(outcome)
                 }
             } catch (e: Exception) {
@@ -1305,6 +1301,46 @@ class ReaderViewModel(
             mutableState.update {
                 val dialog = it.dialog as? Dialog.Translation
                 if (dialog?.page === page) it.copy(dialog = dialog.copy(result = result)) else it
+            }
+        }
+    }
+
+    /** Translations running now, to not translate the same page twice at once. */
+    private val translationJobs = mutableMapOf<String, Deferred<TranslationOutcome?>>()
+
+    /** Translates [page], or joins its translation if it's already running. Null if it didn't load. */
+    private fun translationJob(page: ReaderPage): Deferred<TranslationOutcome?> {
+        val key = page.translationKey()
+        translationJobs[key]?.let { return it }
+        val job = viewModelScope.async {
+            try {
+                // The page may still be loading, e.g. right after moving to it
+                withTimeoutOrNull(PAGE_LOAD_TIMEOUT) {
+                    page.statusFlow.first { it == Page.State.Ready || it is Page.State.Error }
+                }
+                val stream = page.stream
+                if (page.status != Page.State.Ready || stream == null) return@async null
+                val rightToLeft = state.value.viewer is R2LPagerViewer
+                pageTranslator.translate(stream, rightToLeft).also { translationCache[key] = it }
+            } finally {
+                translationJobs.remove(key)
+            }
+        }
+        translationJobs[key] = job
+        return job
+    }
+
+    /** Translates [page] in the background, so it shows right away when the reader gets to it. */
+    private fun prefetchTranslation(page: ReaderPage) {
+        if (!pageTranslator.isReady) return
+        val key = page.translationKey()
+        if (translationCache.containsKey(key) || translationJobs.containsKey(key)) return
+        viewModelScope.launch {
+            try {
+                translationJob(page).await()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                logcat(LogPriority.WARN, e) { "Failed to translate the next page in advance" }
             }
         }
     }
