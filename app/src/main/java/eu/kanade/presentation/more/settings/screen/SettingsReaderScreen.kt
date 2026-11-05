@@ -83,6 +83,34 @@ object SettingsReaderScreen : SearchableSettings {
             getPageDownloadingGroup(readerPreferences = readerPref),
             getForkSettingsGroup(readerPreferences = readerPref),
             // SY <--
+            getTranslationGroup(readerPreferences = readerPref),
+        )
+    }
+
+    @Composable
+    private fun getTranslationGroup(readerPreferences: ReaderPreferences): Preference.PreferenceGroup {
+        return Preference.PreferenceGroup(
+            title = stringResource(SYMR.strings.pref_category_translation),
+            preferenceItems = listOf(
+                Preference.PreferenceItem.EditTextPreference(
+                    preference = readerPreferences.translationGeminiApiKey,
+                    title = stringResource(SYMR.strings.pref_translation_gemini_api_key),
+                    subtitle = stringResource(SYMR.strings.pref_translation_gemini_api_key_summary),
+                ),
+                Preference.PreferenceItem.EditTextPreference(
+                    preference = readerPreferences.translationTargetLanguage,
+                    title = stringResource(SYMR.strings.pref_translation_target_language),
+                ),
+                Preference.PreferenceItem.EditTextPreference(
+                    preference = readerPreferences.translationGeminiModel,
+                    title = stringResource(SYMR.strings.pref_translation_gemini_model),
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = readerPreferences.translationCopyIncludesTranslation,
+                    title = stringResource(SYMR.strings.pref_translation_copy_includes_translation),
+                    subtitle = stringResource(SYMR.strings.pref_translation_copy_includes_translation_summary),
+                ),
+            ),
         )
     }
 

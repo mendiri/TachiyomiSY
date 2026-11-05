@@ -59,6 +59,7 @@ import eu.kanade.presentation.reader.OrientationSelectDialog
 import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.presentation.reader.ReaderPageActionsDialog
 import eu.kanade.presentation.reader.ReaderPageIndicator
+import eu.kanade.presentation.reader.ReaderTranslationSheet
 import eu.kanade.presentation.reader.ReadingModeSelectDialog
 import eu.kanade.presentation.reader.appbars.ReaderAppBars
 import eu.kanade.presentation.reader.components.ChapterNavigatorType
@@ -384,6 +385,27 @@ class ReaderActivity : BaseActivity() {
                     onShareCombined = viewModel::shareImages,
                     onSaveCombined = viewModel::saveImages,
                     hasExtraPage = (state.dialog as? ReaderViewModel.Dialog.PageActions)?.extraPage != null,
+                    onTranslate = viewModel::translatePageFromActions,
+                )
+            }
+
+            is ReaderViewModel.Dialog.Translation -> {
+                val dialog = state.dialog as ReaderViewModel.Dialog.Translation
+                val includeTranslation by readerPreferences.translationCopyIncludesTranslation.collectAsState()
+                ReaderTranslationSheet(
+                    result = dialog.result,
+                    pageTitle = listOfNotNull(
+                        state.manga?.title,
+                        dialog.page.chapter.chapter.name,
+                        stringResource(SYMR.strings.translation_page_number, dialog.page.number),
+                    ).joinToString(" · "),
+                    includeTranslationWhenCopying = includeTranslation,
+                    onDismissRequest = onDismissRequest,
+                    onRetry = { viewModel.openTranslation(dialog.page, forceRefresh = true) },
+                    onSaveApiKey = {
+                        readerPreferences.translationGeminiApiKey.set(it)
+                        viewModel.openTranslation(dialog.page)
+                    },
                 )
             }
 
@@ -633,6 +655,7 @@ class ReaderActivity : BaseActivity() {
             onOpenInWebView = ::openChapterInWebView.takeIf { isHttpSource },
             onOpenInBrowser = ::openChapterInBrowser.takeIf { isHttpSource },
             onShare = ::shareChapter.takeIf { isHttpSource },
+            onTranslate = { translateCurrentPage() },
 
             chapterNavigatorType = if (!verticalNavigator) {
                 if (state.viewer is R2LPagerViewer || (state.viewer as? WebGpuViewer)?.isReversed ?: false) {
@@ -856,6 +879,15 @@ class ReaderActivity : BaseActivity() {
                 toast(SYMR.strings.eh_boost_invalid_loader)
             }
         }
+    }
+
+    private fun translateCurrentPage() {
+        val page = exhCurrentpage()
+        if (page == null) {
+            toast(SYMR.strings.translation_page_not_loaded)
+            return
+        }
+        viewModel.openTranslation(page)
     }
 
     private fun exhCurrentpage(): ReaderPage? {

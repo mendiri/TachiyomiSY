@@ -57,6 +57,7 @@ fun ReaderAppBars(
     onOpenInWebView: (() -> Unit)?,
     onOpenInBrowser: (() -> Unit)?,
     onShare: (() -> Unit)?,
+    onTranslate: () -> Unit,
 
     chapterNavigatorType: ChapterNavigatorType,
     verticalNavigatorHeight: Float,
@@ -249,6 +250,7 @@ fun ReaderAppBars(
                     onClickWebView = onOpenInWebView,
                     onClickBrowser = onOpenInBrowser,
                     onClickShare = onShare,
+                    onClickTranslate = onTranslate,
                     onClickPageLayout = onClickPageLayout,
                     onClickShiftPage = onClickShiftPage,
                     // SY <--

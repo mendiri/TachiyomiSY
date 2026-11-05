@@ -688,4 +688,24 @@ When this option is disabled, the gestures still work the same way, but those in
 
     <!-- Humanize time -->
     <string name="humanize_fallback">moments ago</string>
+
+    <!-- Page translation -->
+    <string name="action_translate_page">Translate page</string>
+    <string name="action_translate_first_page">Translate first page</string>
+    <string name="action_translate_second_page">Translate second page</string>
+    <string name="translation_copy_all">Copy all</string>
+    <string name="translation_share_all">Share all</string>
+    <string name="translation_in_progress">Reading and translating the page…</string>
+    <string name="translation_error">The page could not be translated</string>
+    <string name="translation_no_text">No text found on this page</string>
+    <string name="translation_page_not_loaded">The page has not finished loading</string>
+    <string name="translation_missing_api_key">Page translation uses Google Gemini. Create a free API key at aistudio.google.com/apikey and paste it here. It can be changed later in Settings → Reader → Page translation.</string>
+    <string name="translation_page_number">Page %1$d</string>
+    <string name="pref_category_translation">Page translation</string>
+    <string name="pref_translation_gemini_api_key">Gemini API key</string>
+    <string name="pref_translation_gemini_api_key_summary">Create one for free at aistudio.google.com/apikey</string>
+    <string name="pref_translation_gemini_model">Gemini model</string>
+    <string name="pref_translation_target_language">Translate to</string>
+    <string name="pref_translation_copy_includes_translation">Include translation when copying or sharing</string>
+    <string name="pref_translation_copy_includes_translation_summary">If disabled, only the original text is copied</string>
 </resources>

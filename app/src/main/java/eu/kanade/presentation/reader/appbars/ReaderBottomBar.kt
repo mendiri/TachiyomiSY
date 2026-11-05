@@ -21,6 +21,7 @@ import mihon.icons.materialsymbols.rounded.Settings
 import mihon.icons.materialsymbols.rounded.Share
 import mihon.icons.sy.materialsymbols.SYMaterialSymbols
 import mihon.icons.sy.materialsymbols.rounded.Input
+import mihon.icons.sy.materialsymbols.rounded.Translate
 import mihon.icons.sy.materialsymbols.roundedfilled.MenuBook
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
@@ -46,6 +47,7 @@ fun ReaderBottomBar(
     onClickWebView: (() -> Unit)?,
     onClickBrowser: (() -> Unit)?,
     onClickShare: (() -> Unit)?,
+    onClickTranslate: () -> Unit,
     onClickPageLayout: () -> Unit,
     onClickShiftPage: () -> Unit,
     // SY <--
@@ -90,6 +92,15 @@ fun ReaderBottomBar(
                 Icon(
                     imageVector = MaterialSymbols.Rounded.Share,
                     contentDescription = stringResource(MR.strings.action_share),
+                )
+            }
+        }
+
+        if (ReaderBottomButton.Translate.isIn(enabledButtons)) {
+            IconButton(onClick = onClickTranslate) {
+                Icon(
+                    imageVector = SYMaterialSymbols.Rounded.Translate,
+                    contentDescription = stringResource(SYMR.strings.action_translate_page),
                 )
             }
         }

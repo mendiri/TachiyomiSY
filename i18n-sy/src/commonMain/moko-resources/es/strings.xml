@@ -541,4 +541,24 @@
     <string name="filename">Nombre de archivo</string>
     <string name="pref_include_chapter_url_hash_desc">Añade las primeras seis letras del hash MD5 de la dirección URL del capítulo al nombre de archivo o carpeta local.</string>
     <string name="pref_include_chapter_url_hash">Incluir el hash de la URL del capítulo</string>
+
+    <!-- Page translation -->
+    <string name="action_translate_page">Traducir página</string>
+    <string name="action_translate_first_page">Traducir primera página</string>
+    <string name="action_translate_second_page">Traducir segunda página</string>
+    <string name="translation_copy_all">Copiar todo</string>
+    <string name="translation_share_all">Compartir todo</string>
+    <string name="translation_in_progress">Leyendo y traduciendo la página…</string>
+    <string name="translation_error">No se pudo traducir la página</string>
+    <string name="translation_no_text">No se encontró texto en esta página</string>
+    <string name="translation_page_not_loaded">La página aún no ha terminado de cargar</string>
+    <string name="translation_missing_api_key">La traducción de páginas usa Google Gemini. Crea una clave de API gratuita en aistudio.google.com/apikey y pégala aquí. Puedes cambiarla después en Ajustes → Lector → Traducción de páginas.</string>
+    <string name="translation_page_number">Pág. %1$d</string>
+    <string name="pref_category_translation">Traducción de páginas</string>
+    <string name="pref_translation_gemini_api_key">Clave de API de Gemini</string>
+    <string name="pref_translation_gemini_api_key_summary">Créala gratis en aistudio.google.com/apikey</string>
+    <string name="pref_translation_gemini_model">Modelo de Gemini</string>
+    <string name="pref_translation_target_language">Traducir a</string>
+    <string name="pref_translation_copy_includes_translation">Incluir la traducción al copiar o compartir</string>
+    <string name="pref_translation_copy_includes_translation_summary">Si está desactivado, solo se copia el texto original</string>
 </resources>

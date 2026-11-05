@@ -57,6 +57,8 @@ import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.translate.GeminiPageTranslator
+import eu.kanade.tachiyomi.ui.reader.translate.TranslatedBlock
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
@@ -101,6 +103,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
@@ -120,6 +123,7 @@ import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.interactor.GetMergedMangaById
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.i18n.sy.SYMR
 import tachiyomi.source.local.image.LocalCoverManager
 import tachiyomi.source.local.isLocal
 import java.util.Locale
@@ -167,6 +171,7 @@ class ReaderViewModel(
     private val sourcePreferences: SourcePreferences,
     private val cbzCrypto: CbzCrypto,
     // SY <--
+    private val pageTranslator: GeminiPageTranslator,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -1243,6 +1248,55 @@ class ReaderViewModel(
         mutableState.update { it.copy(dialog = null) }
     }
 
+    // Page translation -->
+    private val translationCache = mutableMapOf<String, List<TranslatedBlock>>()
+
+    private fun ReaderPage.translationKey() = "${chapter.chapter.id}-$index"
+
+    /** Reads and translates the text of [page], showing the result in a sheet. */
+    fun openTranslation(page: ReaderPage?, forceRefresh: Boolean = false) {
+        if (page == null) return
+        if (!pageTranslator.isConfigured) {
+            mutableState.update { it.copy(dialog = Dialog.Translation(page, TranslationResult.MissingApiKey)) }
+            return
+        }
+        val key = page.translationKey()
+        if (forceRefresh) translationCache.remove(key)
+        translationCache[key]?.let { cached ->
+            mutableState.update { it.copy(dialog = Dialog.Translation(page, TranslationResult.Success(cached))) }
+            return
+        }
+        mutableState.update { it.copy(dialog = Dialog.Translation(page, TranslationResult.Loading)) }
+
+        viewModelScope.launch {
+            val result = try {
+                val stream = page.stream
+                if (page.status != Page.State.Ready || stream == null) {
+                    TranslationResult.Error(context.stringResource(SYMR.strings.translation_page_not_loaded))
+                } else {
+                    val blocks = pageTranslator.translate(stream)
+                    translationCache[key] = blocks
+                    TranslationResult.Success(blocks)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                logcat(LogPriority.ERROR, e) { "Failed to translate page" }
+                TranslationResult.Error(e.message ?: e.javaClass.simpleName)
+            }
+            mutableState.update {
+                val dialog = it.dialog as? Dialog.Translation
+                if (dialog?.page === page) it.copy(dialog = dialog.copy(result = result)) else it
+            }
+        }
+    }
+
+    /** Translates the page the page actions sheet was opened for. */
+    fun translatePageFromActions(useExtraPage: Boolean) {
+        val dialog = state.value.dialog as? Dialog.PageActions ?: return
+        openTranslation(if (useExtraPage) dialog.extraPage else dialog.page)
+    }
+    // Page translation <--
+
     fun setBrightnessOverlayValue(value: Int) {
         mutableState.update { it.copy(brightnessOverlayValue = value) }
     }
@@ -1605,6 +1659,18 @@ class ReaderViewModel(
         data object RetryAllHelp : Dialog
         data object BoostPageHelp : Dialog
         // SY <--
+
+        data class Translation(
+            val page: ReaderPage,
+            val result: TranslationResult = TranslationResult.Loading,
+        ) : Dialog
+    }
+
+    sealed interface TranslationResult {
+        data object Loading : TranslationResult
+        data object MissingApiKey : TranslationResult
+        data class Success(val blocks: List<TranslatedBlock>) : TranslationResult
+        data class Error(val message: String) : TranslationResult
     }
 
     sealed interface Event {

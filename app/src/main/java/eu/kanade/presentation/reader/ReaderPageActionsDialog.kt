@@ -21,6 +21,8 @@ import mihon.icons.materialsymbols.rounded.ContentCopy
 import mihon.icons.materialsymbols.rounded.Photo
 import mihon.icons.materialsymbols.rounded.Save
 import mihon.icons.materialsymbols.rounded.Share
+import mihon.icons.sy.materialsymbols.SYMaterialSymbols
+import mihon.icons.sy.materialsymbols.rounded.Translate
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.components.ActionButton
@@ -38,6 +40,7 @@ fun ReaderPageActionsDialog(
     onSaveCombined: () -> Unit,
     hasExtraPage: Boolean,
     // SY <--
+    onTranslate: (useExtraPage: Boolean) -> Unit,
 ) {
     var showSetCoverDialog by remember { mutableStateOf(false) }
     // SY -->
@@ -121,6 +124,18 @@ fun ReaderPageActionsDialog(
                         onDismissRequest()
                     },
                 )
+                ActionButton(
+                    modifier = Modifier.weight(1f),
+                    title = stringResource(
+                        if (hasExtraPage) {
+                            SYMR.strings.action_translate_first_page
+                        } else {
+                            SYMR.strings.action_translate_page
+                        },
+                    ),
+                    icon = SYMaterialSymbols.Rounded.Translate,
+                    onClick = { onTranslate(false) },
+                )
             }
             if (hasExtraPage) {
                 Row(
@@ -161,6 +176,12 @@ fun ReaderPageActionsDialog(
                             onSave(true)
                             onDismissRequest()
                         },
+                    )
+                    ActionButton(
+                        modifier = Modifier.weight(1f),
+                        title = stringResource(SYMR.strings.action_translate_second_page),
+                        icon = SYMaterialSymbols.Rounded.Translate,
+                        onClick = { onTranslate(true) },
                     )
                 }
                 Row(

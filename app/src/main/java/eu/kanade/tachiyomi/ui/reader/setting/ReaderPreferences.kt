@@ -273,6 +273,17 @@ class ReaderPreferences(
 
     val readerBottomButtons: Preference<Set<String>> = preferenceStore.getStringSet("reader_bottom_buttons", ReaderBottomButton.BUTTONS_DEFAULTS)
 
+    // Page translation (Gemini) -->
+    val translationGeminiApiKey: Preference<String> = preferenceStore.getString("translation_gemini_api_key", "")
+
+    val translationGeminiModel: Preference<String> = preferenceStore.getString("translation_gemini_model", "gemini-flash-latest")
+
+    val translationTargetLanguage: Preference<String> = preferenceStore.getString("translation_target_language", "Español")
+
+    val translationCopyIncludesTranslation: Preference<Boolean> =
+        preferenceStore.getBoolean("translation_copy_includes_translation", true)
+    // Page translation <--
+
     val pageLayout: Preference<Int> = preferenceStore.getInt("page_layout", PagerConfig.PageLayout.AUTOMATIC)
 
     val invertDoublePages: Preference<Boolean> = preferenceStore.getBoolean("invert_double_pages", false)
