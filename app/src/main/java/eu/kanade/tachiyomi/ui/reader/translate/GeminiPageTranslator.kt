@@ -27,6 +27,7 @@ import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import tachiyomi.core.common.util.system.ImageUtil
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
@@ -77,10 +78,15 @@ class GeminiPageTranslator(
 
     /** Decodes the page and returns it as one or more JPEG slices ready to be sent. */
     private fun decodeSlices(openStream: () -> InputStream): List<ByteArray> {
-        val decoded: Bitmap? = openStream().use { stream ->
-            ImageDecoder.open(stream).use { it.decodeNext() }
+        val source: Bitmap = try {
+            openStream().use { stream ->
+                with(ImageUtil) {
+                    ImageDecoder.open(stream).use { decoder -> decoder.decodeNext().use { it.toBitmap() } }
+                }
+            }
+        } catch (e: Exception) {
+            throw TranslationException("Could not decode the page image: ${e.message}")
         }
-        val source = decoded ?: throw TranslationException("Could not decode the page image")
 
         val bitmap = if (source.width > MAX_WIDTH) {
             val height = (source.height.toLong() * MAX_WIDTH / source.width).toInt().coerceAtLeast(1)
