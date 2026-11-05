@@ -92,33 +92,34 @@ class FreePageTranslator(
             recognizer.close()
         }
 
+        val lines = text.textBlocks
+            .flatMap { it.lines }
+            // Skip what's probably not dialogue: tilted text and unsure readings are usually sound effects
+            .filter { line -> line.confidence >= MIN_CONFIDENCE && kotlin.math.abs(line.angle) <= MAX_ANGLE }
+            .mapNotNull { line -> line.boundingBox?.let { TextLine(line.text, it) } }
+
         val rowHeight = (bitmap.height / ROWS_PER_PAGE).coerceAtLeast(1)
-        return text.textBlocks
-            .filter { it.boundingBox != null }
+        return BubbleGrouper.group(bitmap, lines)
             .sortedWith(
-                compareBy<Text.TextBlock> { it.boundingBox!!.top / rowHeight }
-                    .thenBy { it.boundingBox!!.horizontalOrder(rightToLeft) },
+                compareBy<TextGroup> { it.box.top / rowHeight }
+                    .thenBy { it.box.horizontalOrder(rightToLeft) },
             )
-            .map { block -> TranslatedBlock(normalize(block.lines.map { it.text }), "", block.pageBox(slice)) }
-            .filter { block -> block.original.count { it.isLetter() } >= MIN_LETTERS }
+            .map { group ->
+                val ordered = group.lines.sortedWith(compareBy<TextLine> { it.box.top }.thenBy { it.box.left })
+                group to normalize(ordered.map { it.text })
+            }
+            .filter { (group, original) ->
+                original.count { it.isLetter() } >= MIN_LETTERS &&
+                    // A single word outside of any bubble is almost always a sound effect
+                    (group.inBubble || original.trim().contains(' '))
+            }
+            .map { (group, original) -> TranslatedBlock(original, "", group.box.toPageBox(slice)) }
     }
 
-    /**
-     * The box of the recognized text on the page. It's grown a little, as the box only wraps the
-     * letters and translations are usually longer than the original.
-     */
-    private fun Text.TextBlock.pageBox(slice: PageSlice): BlockBox? {
-        val rect = boundingBox ?: return null
+    private fun Rect.toPageBox(slice: PageSlice): BlockBox? {
         val width = slice.bitmap.width.toFloat()
         val height = slice.bitmap.height.toFloat()
-        val growX = rect.width() * BOX_GROW_X
-        val growY = rect.height() * BOX_GROW_Y
-        return slice.toPageBox(
-            (rect.left - growX) / width,
-            (rect.top - growY) / height,
-            (rect.right + growX) / width,
-            (rect.bottom + growY) / height,
-        )
+        return slice.toPageBox(left / width, top / height, right / width, bottom / height)
     }
 
     private fun Rect.horizontalOrder(rightToLeft: Boolean) = if (rightToLeft) -right else left
@@ -226,8 +227,8 @@ class FreePageTranslator(
         private const val MAX_PARALLEL_REQUESTS = 4
         private const val ROWS_PER_PAGE = 12
         private const val MIN_LETTERS = 2
-        private const val BOX_GROW_X = 0.15f
-        private const val BOX_GROW_Y = 0.2f
+        private const val MIN_CONFIDENCE = 0.5f
+        private const val MAX_ANGLE = 20f
         private val STANDALONE_I = Regex("\\bi\\b")
 
         private val LANGUAGE_NAMES = mapOf(

@@ -191,10 +191,12 @@ class GeminiPageTranslator(
 
     private fun prompt(target: String) = """
         You are an expert comic, manga and webtoon translator helping a language learner.
-        Read ALL the text in this image: speech bubbles, thought bubbles, captions, narration boxes, signs and
-        meaningful sound effects. Follow the natural reading order of the page (left-to-right and top-to-bottom for
-        Western comics and webtoons, right-to-left for Japanese manga).
-        For each separate block of text return:
+        Read the text in this image: speech bubbles, thought bubbles, captions, narration boxes and signs. Ignore
+        sound effects and onomatopoeia drawn as part of the artwork (like "FWUMP", "SHAKE", "DOOO").
+        Return exactly ONE entry per bubble or caption box: all the lines inside the same balloon are a single
+        entry, never split a balloon into several entries. Follow the natural reading order of the page
+        (left-to-right and top-to-bottom for Western comics and webtoons, right-to-left for Japanese manga).
+        For each bubble return:
         - "original": the text exactly as written, joined into a single line (remove the line breaks and
           hyphenation of the lettering). If the lettering is in ALL CAPS, rewrite it with normal sentence
           capitalization. Do not correct or change the wording.
