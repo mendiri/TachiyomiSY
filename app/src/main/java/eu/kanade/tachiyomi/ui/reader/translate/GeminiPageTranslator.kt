@@ -10,6 +10,7 @@ import dev.zacsweers.metro.SingleIn
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -38,7 +39,10 @@ data class TranslatedBlock(
     val translation: String,
 )
 
-class TranslationException(message: String) : Exception(message)
+open class TranslationException(message: String) : Exception(message)
+
+/** The model is overloaded or rate limited: worth retrying later or with another model. */
+class TemporaryTranslationException(message: String) : TranslationException(message)
 
 /**
  * Reads the text of a page image and translates it with the Google Gemini API.
@@ -73,7 +77,7 @@ class GeminiPageTranslator(
         val target = readerPreferences.translationTargetLanguage.get().trim().ifBlank { "Spanish" }
 
         val slices = decodeSlices(openStream)
-        slices.flatMap { jpeg -> request(apiKey, model, target, jpeg) }
+        slices.flatMap { jpeg -> requestWithRetries(apiKey, model, target, jpeg) }
     }
 
     /** Decodes the page and returns it as one or more JPEG slices ready to be sent. */
@@ -115,6 +119,31 @@ class GeminiPageTranslator(
         }
         bitmap.recycle()
         return slices
+    }
+
+    /**
+     * Gemini often answers 503 (model overloaded) or 429 (rate limited) for a short while. Retry a
+     * few times with a growing pause, then try the fallback models before giving up.
+     */
+    private suspend fun requestWithRetries(
+        apiKey: String,
+        model: String,
+        target: String,
+        jpeg: ByteArray,
+    ): List<TranslatedBlock> {
+        val models = (listOf(model) + FALLBACK_MODELS).distinct()
+        var lastError: TemporaryTranslationException? = null
+        for (candidate in models) {
+            repeat(RETRIES_PER_MODEL) { attempt ->
+                try {
+                    return request(apiKey, candidate, target, jpeg)
+                } catch (e: TemporaryTranslationException) {
+                    lastError = e
+                    if (attempt < RETRIES_PER_MODEL - 1) delay(RETRY_DELAY_MS * (attempt + 1))
+                }
+            }
+        }
+        throw lastError ?: TranslationException("Gemini is not available")
     }
 
     private fun request(apiKey: String, model: String, target: String, jpeg: ByteArray): List<TranslatedBlock> {
@@ -166,7 +195,9 @@ class GeminiPageTranslator(
                     json.parseToJsonElement(text).jsonObject["error"]?.jsonObject
                         ?.get("message")?.jsonPrimitive?.contentOrNull
                 }.getOrNull()
-                throw TranslationException("Gemini (HTTP ${response.code}): ${message ?: response.message}")
+                val error = "Gemini $model (HTTP ${response.code}): ${message ?: response.message}"
+                if (response.code in TEMPORARY_ERROR_CODES) throw TemporaryTranslationException(error)
+                throw TranslationException(error)
             }
             return parse(text)
         }
@@ -213,6 +244,10 @@ class GeminiPageTranslator(
 
     companion object {
         const val DEFAULT_MODEL = "gemini-flash-latest"
+        private val FALLBACK_MODELS = listOf("gemini-flash-lite-latest", "gemini-2.5-flash")
+        private val TEMPORARY_ERROR_CODES = setOf(429, 500, 502, 503, 504)
+        private const val RETRIES_PER_MODEL = 2
+        private const val RETRY_DELAY_MS = 2_000L
         private const val API_URL = "https://generativelanguage.googleapis.com/v1beta"
         private const val MAX_WIDTH = 1536
         private const val MAX_SLICE_HEIGHT = 3072
