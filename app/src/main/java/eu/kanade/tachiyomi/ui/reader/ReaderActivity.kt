@@ -59,6 +59,7 @@ import eu.kanade.presentation.reader.OrientationSelectDialog
 import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.presentation.reader.ReaderPageActionsDialog
 import eu.kanade.presentation.reader.ReaderPageIndicator
+import eu.kanade.presentation.reader.ReaderTranslatedPageView
 import eu.kanade.presentation.reader.ReaderTranslationSheet
 import eu.kanade.presentation.reader.ReadingModeSelectDialog
 import eu.kanade.presentation.reader.appbars.ReaderAppBars
@@ -82,6 +83,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.Companion.TRANSLATION_DISPLAY_OVERLAY
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.translate.TranslationEngine
@@ -393,25 +395,51 @@ class ReaderActivity : BaseActivity() {
             is ReaderViewModel.Dialog.Translation -> {
                 val dialog = state.dialog as ReaderViewModel.Dialog.Translation
                 val includeTranslation by readerPreferences.translationCopyIncludesTranslation.collectAsState()
-                ReaderTranslationSheet(
-                    result = dialog.result,
-                    pageTitle = listOfNotNull(
-                        state.manga?.title,
-                        dialog.page.chapter.chapter.name,
-                        stringResource(SYMR.strings.translation_page_number, dialog.page.number),
-                    ).joinToString(" · "),
-                    includeTranslationWhenCopying = includeTranslation,
-                    onDismissRequest = onDismissRequest,
-                    onRetry = { viewModel.openTranslation(dialog.page, forceRefresh = true) },
-                    onSaveApiKey = {
-                        readerPreferences.translationGeminiApiKey.set(it)
-                        viewModel.openTranslation(dialog.page)
-                    },
-                    onUseFreeTranslator = {
-                        readerPreferences.translationEngine.set(TranslationEngine.Free.value)
-                        viewModel.openTranslation(dialog.page)
-                    },
-                )
+                val displayMode by readerPreferences.translationDisplayMode.collectAsState()
+                var showList by remember(dialog.page) { mutableStateOf(false) }
+                val pageTitle = listOfNotNull(
+                    state.manga?.title,
+                    dialog.page.chapter.chapter.name,
+                    stringResource(SYMR.strings.translation_page_number, dialog.page.number),
+                ).joinToString(" · ")
+                val result = dialog.result
+                val canDrawOverPage = when (result) {
+                    ReaderViewModel.TranslationResult.Loading -> true
+                    is ReaderViewModel.TranslationResult.Success ->
+                        result.outcome.image != null && result.outcome.blocks.any { it.box != null }
+                    else -> false
+                }
+                val previousPage = viewModel.adjacentPage(dialog.page, -1)
+                val nextPage = viewModel.adjacentPage(dialog.page, 1)
+                if (displayMode == TRANSLATION_DISPLAY_OVERLAY && !showList && canDrawOverPage) {
+                    ReaderTranslatedPageView(
+                        result = result,
+                        pageTitle = pageTitle,
+                        includeTranslationWhenCopying = includeTranslation,
+                        hasPrevious = previousPage != null,
+                        hasNext = nextPage != null,
+                        onPrevious = { translateAdjacentPage(previousPage) },
+                        onNext = { translateAdjacentPage(nextPage) },
+                        onShowList = { showList = true },
+                        onDismissRequest = onDismissRequest,
+                    )
+                } else {
+                    ReaderTranslationSheet(
+                        result = dialog.result,
+                        pageTitle = pageTitle,
+                        includeTranslationWhenCopying = includeTranslation,
+                        onDismissRequest = onDismissRequest,
+                        onRetry = { viewModel.openTranslation(dialog.page, forceRefresh = true) },
+                        onSaveApiKey = {
+                            readerPreferences.translationGeminiApiKey.set(it)
+                            viewModel.openTranslation(dialog.page)
+                        },
+                        onUseFreeTranslator = {
+                            readerPreferences.translationEngine.set(TranslationEngine.Free.value)
+                            viewModel.openTranslation(dialog.page)
+                        },
+                    )
+                }
             }
 
             // SY -->
@@ -884,6 +912,13 @@ class ReaderActivity : BaseActivity() {
                 toast(SYMR.strings.eh_boost_invalid_loader)
             }
         }
+    }
+
+    /** Moves the reader to [page] and translates it. */
+    private fun translateAdjacentPage(page: ReaderPage?) {
+        if (page == null) return
+        moveToPageIndex(page.index)
+        viewModel.openTranslation(page)
     }
 
     private fun translateCurrentPage() {

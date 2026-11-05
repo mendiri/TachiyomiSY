@@ -102,6 +102,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
 import tachiyomi.core.common.i18n.stringResource
@@ -1250,7 +1251,12 @@ class ReaderViewModel(
     }
 
     // Page translation -->
-    private val translationCache = mutableMapOf<String, TranslationOutcome>()
+
+    /** Last translated pages, so going back to them is instant (and free). */
+    private val translationCache = object : LinkedHashMap<String, TranslationOutcome>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, TranslationOutcome>?) =
+            size > TRANSLATION_CACHE_SIZE
+    }
 
     private fun ReaderPage.translationKey() = "${chapter.chapter.id}-$index"
 
@@ -1278,6 +1284,10 @@ class ReaderViewModel(
 
         viewModelScope.launch {
             val result = try {
+                // The page may still be loading, e.g. right after moving to it
+                withTimeoutOrNull(PAGE_LOAD_TIMEOUT) {
+                    page.statusFlow.first { it == Page.State.Ready || it is Page.State.Error }
+                }
                 val stream = page.stream
                 if (page.status != Page.State.Ready || stream == null) {
                     TranslationResult.Error(context.stringResource(SYMR.strings.translation_page_not_loaded))
@@ -1297,6 +1307,11 @@ class ReaderViewModel(
                 if (dialog?.page === page) it.copy(dialog = dialog.copy(result = result)) else it
             }
         }
+    }
+
+    /** The page [offset] pages away from [page] in the same chapter, if any. */
+    fun adjacentPage(page: ReaderPage, offset: Int): ReaderPage? {
+        return page.chapter.pages?.getOrNull(page.index + offset)
     }
 
     /** Translates the page the page actions sheet was opened for. */
@@ -1699,3 +1714,5 @@ class ReaderViewModel(
 }
 
 private val PROGRESS_SAVE_DELAY = 2.seconds
+private val PAGE_LOAD_TIMEOUT = 60.seconds
+private const val TRANSLATION_CACHE_SIZE = 6

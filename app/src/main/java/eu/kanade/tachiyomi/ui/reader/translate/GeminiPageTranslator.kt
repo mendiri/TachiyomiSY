@@ -53,7 +53,7 @@ class GeminiPageTranslator(
     val isConfigured: Boolean
         get() = readerPreferences.translationGeminiApiKey.get().isNotBlank()
 
-    suspend fun translate(slices: List<Bitmap>): List<TranslatedBlock> = withContext(Dispatchers.IO) {
+    suspend fun translate(slices: List<PageSlice>): List<TranslatedBlock> = withContext(Dispatchers.IO) {
         val apiKey = readerPreferences.translationGeminiApiKey.get().trim()
         if (apiKey.isBlank()) throw TranslationException("Missing Gemini API key")
         val model = readerPreferences.translationGeminiModel.get().trim().ifBlank { DEFAULT_MODEL }
@@ -61,10 +61,13 @@ class GeminiPageTranslator(
 
         slices.flatMap { slice ->
             val jpeg = ByteArrayOutputStream().use { out ->
-                slice.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
+                slice.bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
                 out.toByteArray()
             }
-            requestWithRetries(apiKey, model, target, jpeg)
+            // Boxes come relative to the slice: place them on the whole page
+            requestWithRetries(apiKey, model, target, jpeg).map { block ->
+                block.copy(box = block.box?.let { slice.toPageBox(it.left, it.top, it.right, it.bottom) })
+            }
         }
     }
 
@@ -119,10 +122,15 @@ class GeminiPageTranslator(
                         putJsonObject("properties") {
                             putJsonObject("original") { put("type", "STRING") }
                             putJsonObject("translation") { put("type", "STRING") }
+                            putJsonObject("box_2d") {
+                                put("type", "ARRAY")
+                                putJsonObject("items") { put("type", "INTEGER") }
+                            }
                         }
                         putJsonArray("required") {
                             add("original")
                             add("translation")
+                            add("box_2d")
                         }
                     }
                 }
@@ -171,7 +179,13 @@ class GeminiPageTranslator(
             val obj = element as? JsonObject ?: return@mapNotNull null
             val original = obj["original"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
             val translation = obj["translation"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
-            if (original.isEmpty() && translation.isEmpty()) null else TranslatedBlock(original, translation)
+            if (original.isEmpty() && translation.isEmpty()) return@mapNotNull null
+            // [ymin, xmin, ymax, xmax] from 0 to 1000
+            val box = (obj["box_2d"] as? JsonArray)
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull?.toFloatOrNull() }
+                ?.takeIf { it.size == 4 }
+                ?.let { (yMin, xMin, yMax, xMax) -> BlockBox(xMin / 1000f, yMin / 1000f, xMax / 1000f, yMax / 1000f) }
+            TranslatedBlock(original, translation, box)
         }
     }
 
@@ -186,6 +200,8 @@ class GeminiPageTranslator(
           capitalization. Do not correct or change the wording.
         - "translation": a natural and faithful translation into $target, keeping the tone, slang and register of
           the characters.
+        - "box_2d": the bounding box of the whole speech bubble, caption box or text area that contains this text
+          (the full balloon, not only the letters), as [ymin, xmin, ymax, xmax] normalized to 0-1000.
         If the image has no text, return an empty array. Do not add any commentary.
     """.trimIndent()
 

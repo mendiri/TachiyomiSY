@@ -64,21 +64,9 @@ fun ReaderTranslationSheet(
 ) {
     val context = LocalContext.current
 
-    fun format(block: TranslatedBlock): String {
-        return if (includeTranslationWhenCopying && block.translation.isNotBlank()) {
-            "${block.original}\n→ ${block.translation}"
-        } else {
-            block.original
-        }
-    }
+    fun format(block: TranslatedBlock) = block.toNoteText(includeTranslationWhenCopying)
 
-    fun formatAll(blocks: List<TranslatedBlock>): String {
-        return buildString {
-            append(pageTitle)
-            append("\n\n")
-            append(blocks.joinToString("\n\n") { format(it) })
-        }
-    }
+    fun formatAll(blocks: List<TranslatedBlock>) = blocks.toNoteText(pageTitle, includeTranslationWhenCopying)
 
     AdaptiveSheet(onDismissRequest = onDismissRequest) {
         Column(modifier = Modifier.padding(vertical = MaterialTheme.padding.medium)) {
@@ -307,11 +295,20 @@ private fun ApiKeyForm(onSaveApiKey: (String) -> Unit, onUseFreeTranslator: () -
     }
 }
 
-private fun Context.copyText(text: String) {
+/** How a block is copied or shared, e.g. to a notes app. */
+internal fun TranslatedBlock.toNoteText(includeTranslation: Boolean): String {
+    return if (includeTranslation && translation.isNotBlank()) "$original\n→ $translation" else original
+}
+
+internal fun List<TranslatedBlock>.toNoteText(title: String, includeTranslation: Boolean): String {
+    return title + "\n\n" + joinToString("\n\n") { it.toNoteText(includeTranslation) }
+}
+
+internal fun Context.copyText(text: String) {
     copyToClipboard(getString(android.R.string.copy), text)
 }
 
-private fun Context.shareText(text: String) {
+internal fun Context.shareText(text: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, text)

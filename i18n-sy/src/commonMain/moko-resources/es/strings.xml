@@ -574,4 +574,11 @@
     <string name="pref_translation_azure_key_summary">Clave de tu recurso de Azure Translator. Opcional si usas Gemini: si Gemini falla, se prueba antes que Google Translate</string>
     <string name="pref_translation_azure_region">Región de Microsoft Azure</string>
     <string name="pref_translation_azure_region_summary">Ubicación del recurso, por ejemplo westeurope. Déjalo vacío si es global</string>
+    <string name="translation_previous_page">‹ Anterior</string>
+    <string name="translation_next_page">Siguiente ›</string>
+    <string name="translation_toggle_original">Mostrar u ocultar la traducción</string>
+    <string name="translation_show_list">Ver como lista</string>
+    <string name="pref_translation_display_mode">Mostrar la traducción</string>
+    <string name="pref_translation_display_overlay">Encima de los globos</string>
+    <string name="pref_translation_display_list">Como lista</string>
 </resources>

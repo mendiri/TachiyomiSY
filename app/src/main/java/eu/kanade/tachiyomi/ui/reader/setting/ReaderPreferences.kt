@@ -280,6 +280,9 @@ class ReaderPreferences(
 
     val translationAzureRegion: Preference<String> = preferenceStore.getString("translation_azure_region", "")
 
+    val translationDisplayMode: Preference<String> =
+        preferenceStore.getString("translation_display_mode", TRANSLATION_DISPLAY_OVERLAY)
+
     val translationFallbackToFree: Preference<Boolean> =
         preferenceStore.getBoolean("translation_fallback_to_free", true)
 
@@ -378,6 +381,9 @@ class ReaderPreferences(
     }
 
     companion object {
+        const val TRANSLATION_DISPLAY_OVERLAY = "overlay"
+        const val TRANSLATION_DISPLAY_LIST = "list"
+
         const val WEBTOON_PADDING_MIN = 0
         const val WEBTOON_PADDING_MAX = 25
 

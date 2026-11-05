@@ -108,6 +108,16 @@ object SettingsReaderScreen : SearchableSettings {
                     title = stringResource(SYMR.strings.pref_translation_engine),
                 ),
                 Preference.PreferenceItem.ListPreference(
+                    preference = readerPreferences.translationDisplayMode,
+                    entries = mapOf(
+                        ReaderPreferences.TRANSLATION_DISPLAY_OVERLAY to
+                            stringResource(SYMR.strings.pref_translation_display_overlay),
+                        ReaderPreferences.TRANSLATION_DISPLAY_LIST to
+                            stringResource(SYMR.strings.pref_translation_display_list),
+                    ),
+                    title = stringResource(SYMR.strings.pref_translation_display_mode),
+                ),
+                Preference.PreferenceItem.ListPreference(
                     preference = readerPreferences.translationGeminiModel,
                     entries = GeminiPageTranslator.MODELS.associateWith { it },
                     title = stringResource(SYMR.strings.pref_translation_gemini_model),

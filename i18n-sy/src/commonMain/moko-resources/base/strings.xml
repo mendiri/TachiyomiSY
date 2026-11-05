@@ -721,4 +721,11 @@ When this option is disabled, the gestures still work the same way, but those in
     <string name="pref_translation_azure_key_summary">Key of your Azure Translator resource. Optional if Gemini is used: it's tried before Google Translate when Gemini fails</string>
     <string name="pref_translation_azure_region">Microsoft Azure region</string>
     <string name="pref_translation_azure_region_summary">Location of the resource, for example westeurope. Leave empty if it's global</string>
+    <string name="translation_previous_page">‹ Previous</string>
+    <string name="translation_next_page">Next ›</string>
+    <string name="translation_toggle_original">Show or hide the translation</string>
+    <string name="translation_show_list">Show as a list</string>
+    <string name="pref_translation_display_mode">Show translation</string>
+    <string name="pref_translation_display_overlay">Over the bubbles</string>
+    <string name="pref_translation_display_list">As a list</string>
 </resources>

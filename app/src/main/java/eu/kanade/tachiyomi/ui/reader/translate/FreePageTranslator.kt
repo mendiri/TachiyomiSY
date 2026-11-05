@@ -57,28 +57,30 @@ class FreePageTranslator(
      * @param useAzure translate with Microsoft Azure instead of Google Translate.
      */
     suspend fun translate(
-        slices: List<Bitmap>,
+        slices: List<PageSlice>,
         rightToLeft: Boolean,
         useAzure: Boolean,
     ): List<TranslatedBlock> = withContext(Dispatchers.IO) {
-        val originals = slices.flatMap { recognize(it, rightToLeft) }
+        val recognized = slices.flatMap { recognize(it, rightToLeft) }
         val target = languageCode(readerPreferences.translationTargetLanguage.get())
-        if (originals.isEmpty()) return@withContext emptyList()
+        if (recognized.isEmpty()) return@withContext emptyList()
         if (useAzure) {
-            return@withContext originals.zip(translateWithAzure(originals, target)) { original, translation ->
-                TranslatedBlock(original, translation)
+            val translations = translateWithAzure(recognized.map { it.original }, target)
+            return@withContext recognized.zip(translations) { block, translation ->
+                block.copy(translation = translation)
             }
         }
         val permits = Semaphore(MAX_PARALLEL_REQUESTS)
-        originals
-            .map { original ->
-                async { permits.withPermit { TranslatedBlock(original, translateText(original, target)) } }
+        recognized
+            .map { block ->
+                async { permits.withPermit { block.copy(translation = translateText(block.original, target)) } }
             }
             .awaitAll()
     }
 
-    /** Reads the text blocks of [bitmap] in reading order. */
-    private suspend fun recognize(bitmap: Bitmap, rightToLeft: Boolean): List<String> {
+    /** Reads the text blocks of a slice in reading order, still untranslated. */
+    private suspend fun recognize(slice: PageSlice, rightToLeft: Boolean): List<TranslatedBlock> {
+        val bitmap = slice.bitmap
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         val text: Text = try {
             suspendCancellableCoroutine { cont ->
@@ -97,8 +99,26 @@ class FreePageTranslator(
                 compareBy<Text.TextBlock> { it.boundingBox!!.top / rowHeight }
                     .thenBy { it.boundingBox!!.horizontalOrder(rightToLeft) },
             )
-            .map { block -> normalize(block.lines.map { it.text }) }
-            .filter { line -> line.count { it.isLetter() } >= MIN_LETTERS }
+            .map { block -> TranslatedBlock(normalize(block.lines.map { it.text }), "", block.pageBox(slice)) }
+            .filter { block -> block.original.count { it.isLetter() } >= MIN_LETTERS }
+    }
+
+    /**
+     * The box of the recognized text on the page. It's grown a little, as the box only wraps the
+     * letters and translations are usually longer than the original.
+     */
+    private fun Text.TextBlock.pageBox(slice: PageSlice): BlockBox? {
+        val rect = boundingBox ?: return null
+        val width = slice.bitmap.width.toFloat()
+        val height = slice.bitmap.height.toFloat()
+        val growX = rect.width() * BOX_GROW_X
+        val growY = rect.height() * BOX_GROW_Y
+        return slice.toPageBox(
+            (rect.left - growX) / width,
+            (rect.top - growY) / height,
+            (rect.right + growX) / width,
+            (rect.bottom + growY) / height,
+        )
     }
 
     private fun Rect.horizontalOrder(rightToLeft: Boolean) = if (rightToLeft) -right else left
@@ -206,6 +226,8 @@ class FreePageTranslator(
         private const val MAX_PARALLEL_REQUESTS = 4
         private const val ROWS_PER_PAGE = 12
         private const val MIN_LETTERS = 2
+        private const val BOX_GROW_X = 0.15f
+        private const val BOX_GROW_Y = 0.2f
         private val STANDALONE_I = Regex("\\bi\\b")
 
         private val LANGUAGE_NAMES = mapOf(
