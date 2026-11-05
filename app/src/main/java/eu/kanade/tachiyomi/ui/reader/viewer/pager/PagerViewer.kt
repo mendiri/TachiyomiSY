@@ -364,13 +364,16 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
      * Moves to the page at the right.
      */
     protected open fun moveRight() {
-        if (pager.currentItem != adapter.count - 1) {
-            val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
-            if (holder != null && config.navigateToPan && holder.canPanRight()) {
+        val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
+        if (holder != null && config.navigateToPan) {
+            if (holder.panVertically(forward = !nextPageIsOnTheLeft)) return
+            if (holder.canPanRight()) {
                 holder.panRight()
-            } else {
-                pager.setCurrentItem(pager.currentItem + 1, config.usePageTransitions)
+                return
             }
+        }
+        if (pager.currentItem != adapter.count - 1) {
+            pager.setCurrentItem(pager.currentItem + 1, config.usePageTransitions)
         }
     }
 
@@ -378,13 +381,38 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
      * Moves to the page at the left.
      */
     protected open fun moveLeft() {
-        if (pager.currentItem != 0) {
-            val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
-            if (holder != null && config.navigateToPan && holder.canPanLeft()) {
+        val holder = (currentPage as? ReaderPage)?.let(::getPageHolder)
+        if (holder != null && config.navigateToPan) {
+            if (holder.panVertically(forward = nextPageIsOnTheLeft)) return
+            if (holder.canPanLeft()) {
                 holder.panLeft()
-            } else {
-                pager.setCurrentItem(pager.currentItem - 1, config.usePageTransitions)
+                return
             }
+        }
+        if (pager.currentItem != 0) {
+            pager.setCurrentItem(pager.currentItem - 1, config.usePageTransitions)
+        }
+    }
+
+    /** Whether the next page is the one at the left (right to left reading). */
+    protected open val nextPageIsOnTheLeft: Boolean = false
+
+    /**
+     * When the page is taller than the screen, scrolls it down (going [forward]) or up (going
+     * back) before turning the page. Returns true if it scrolled.
+     */
+    private fun PagerPageHolder.panVertically(forward: Boolean): Boolean {
+        val animate = config.usePageTransitions
+        return when {
+            forward && canPanDown() -> {
+                panDown(animate)
+                true
+            }
+            !forward && canPanUp() -> {
+                panUp(animate)
+                true
+            }
+            else -> false
         }
     }
 

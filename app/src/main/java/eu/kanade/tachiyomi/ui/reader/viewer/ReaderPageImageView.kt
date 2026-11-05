@@ -222,13 +222,43 @@ open class ReaderPageImageView @JvmOverloads constructor(
     }
 
     /**
+     * Check if part of the image is hidden above the screen
+     */
+    fun canPanUp(): Boolean = canPan { it.top }
+
+    /**
+     * Check if part of the image is hidden below the screen
+     */
+    fun canPanDown(): Boolean = canPan { it.bottom }
+
+    /**
+     * Scrolls the image up by almost a screen's height worth, keeping a bit of what was shown so
+     * the text cut at the edge can still be followed.
+     */
+    fun panUp(animate: Boolean = true) {
+        pan(animate) { center, view -> center.also { it.y -= view.height * VERTICAL_PAN_STEP / view.scale } }
+    }
+
+    /**
+     * Scrolls the image down by almost a screen's height worth.
+     */
+    fun panDown(animate: Boolean = true) {
+        pan(animate) { center, view -> center.also { it.y += view.height * VERTICAL_PAN_STEP / view.scale } }
+    }
+
+    /**
      * Pans the image.
      * @param fn a function that computes the new center of the image
      */
-    private fun pan(fn: (PointF, SubsamplingScaleImageView) -> PointF) {
+    private fun pan(animate: Boolean = true, fn: (PointF, SubsamplingScaleImageView) -> PointF) {
         (pageView as? SubsamplingScaleImageView)?.let { view ->
 
             val target = fn(view.center ?: return, view)
+            if (!animate) {
+                // Without page transitions (e.g. on e-ink screens) jump right away
+                view.setScaleAndCenter(view.scale, target)
+                return
+            }
             view.animateCenter(target)!!
                 .withEasing(EASE_OUT_QUAD)
                 .withDuration(250)
@@ -449,3 +479,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
 }
 
 private const val MAX_ZOOM_SCALE = 5F
+
+/** Part of the screen scrolled on each tap: the rest stays visible as context. */
+private const val VERTICAL_PAN_STEP = 0.9f
