@@ -9,6 +9,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build app
@@ -27,7 +30,24 @@ jobs:
       - name: Set up gradle
         uses: gradle/actions/setup-gradle@v5
 
+      # Every build must be signed with the same key, or Android refuses to install it over the
+      # previous one. The key comes from the DEBUG_KEYSTORE_BASE64 secret, or from the repository.
+      - name: Set up signing key
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p ~/.android
+          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+          elif [ -f .github/signing/debug.keystore ]; then
+            cp .github/signing/debug.keystore ~/.android/debug.keystore
+          else
+            echo "::warning::No fixed signing key: this build can't be installed over the previous one"
+          fi
+
       - name: Build app
+        env:
+          FORK_BUILD: ${{ github.run_number }}
         run: ./gradlew spotlessCheck assembleDebug
 
       - name: Upload APK
@@ -35,3 +55,26 @@ jobs:
         with:
           name: TachiyomiSY-translate-${{ github.sha }}
           path: app/build/outputs/apk/debug/*.apk
+
+      # The app's updater looks for the latest release and downloads the APK for its processor
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: r${{ github.run_number }}
+        run: |
+          mkdir -p release
+          for apk in app/build/outputs/apk/debug/*.apk; do
+            name=$(basename "$apk" .apk)
+            abi=${name#app-}
+            abi=${abi%-debug}
+            cp "$apk" "release/TachiyomiSY-$abi-$TAG.apk"
+          done
+          gh release create "$TAG" release/*.apk \
+            --target "$GITHUB_SHA" \
+            --title "Build $TAG" \
+            --notes "$(git log -1 --pretty=%B)" \
+            --latest
+          # Keep only the last 5 releases
+          gh release list --limit 100 --json tagName --jq '.[5:][].tagName' | while read -r old; do
+            gh release delete "$old" --cleanup-tag --yes
+          done

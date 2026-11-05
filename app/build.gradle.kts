@@ -42,6 +42,9 @@ android {
 
         buildConfigField("boolean", "INCLUDE_UPDATER", "false")
 
+        // Number of the fork's CI build, used by the updater of debug builds. "0" for local builds.
+        buildConfigField("String", "FORK_BUILD", "\"0\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -49,6 +52,13 @@ android {
         named("debug") {
             applicationIdSuffix = ".debug"
             isPseudoLocalesEnabled = true
+
+            // Builds made by the fork's CI update themselves from the fork's GitHub releases
+            val forkBuild = providers.environmentVariable("FORK_BUILD").orNull
+            if (forkBuild != null) {
+                buildConfigField("String", "FORK_BUILD", "\"$forkBuild\"")
+                buildConfigField("boolean", "INCLUDE_UPDATER", "true")
+            }
         }
         named("release") {
             isMinifyEnabled = true
