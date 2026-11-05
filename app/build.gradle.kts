@@ -168,6 +168,8 @@ dependencies {
     baselineProfile(projects.baselineProfile)
 
     implementation(projects.i18n)
+    // Page translation: on-device text recognition for the free translator
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     // SY -->
     implementation(projects.i18nSy)
     // SY <--

@@ -57,8 +57,8 @@ import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
-import eu.kanade.tachiyomi.ui.reader.translate.GeminiPageTranslator
-import eu.kanade.tachiyomi.ui.reader.translate.TranslatedBlock
+import eu.kanade.tachiyomi.ui.reader.translate.PageTranslator
+import eu.kanade.tachiyomi.ui.reader.translate.TranslationOutcome
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
@@ -171,7 +171,7 @@ class ReaderViewModel(
     private val sourcePreferences: SourcePreferences,
     private val cbzCrypto: CbzCrypto,
     // SY <--
-    private val pageTranslator: GeminiPageTranslator,
+    private val pageTranslator: PageTranslator,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -1249,14 +1249,14 @@ class ReaderViewModel(
     }
 
     // Page translation -->
-    private val translationCache = mutableMapOf<String, List<TranslatedBlock>>()
+    private val translationCache = mutableMapOf<String, TranslationOutcome>()
 
     private fun ReaderPage.translationKey() = "${chapter.chapter.id}-$index"
 
     /** Reads and translates the text of [page], showing the result in a sheet. */
     fun openTranslation(page: ReaderPage?, forceRefresh: Boolean = false) {
         if (page == null) return
-        if (!pageTranslator.isConfigured) {
+        if (!pageTranslator.isReady) {
             mutableState.update { it.copy(dialog = Dialog.Translation(page, TranslationResult.MissingApiKey)) }
             return
         }
@@ -1274,9 +1274,10 @@ class ReaderViewModel(
                 if (page.status != Page.State.Ready || stream == null) {
                     TranslationResult.Error(context.stringResource(SYMR.strings.translation_page_not_loaded))
                 } else {
-                    val blocks = pageTranslator.translate(stream)
-                    translationCache[key] = blocks
-                    TranslationResult.Success(blocks)
+                    val rightToLeft = state.value.viewer is R2LPagerViewer
+                    val outcome = pageTranslator.translate(stream, rightToLeft)
+                    translationCache[key] = outcome
+                    TranslationResult.Success(outcome)
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -1669,7 +1670,7 @@ class ReaderViewModel(
     sealed interface TranslationResult {
         data object Loading : TranslationResult
         data object MissingApiKey : TranslationResult
-        data class Success(val blocks: List<TranslatedBlock>) : TranslationResult
+        data class Success(val outcome: TranslationOutcome) : TranslationResult
         data class Error(val message: String) : TranslationResult
     }
 

@@ -708,4 +708,11 @@ When this option is disabled, the gestures still work the same way, but those in
     <string name="pref_translation_target_language">Translate to</string>
     <string name="pref_translation_copy_includes_translation">Include translation when copying or sharing</string>
     <string name="pref_translation_copy_includes_translation_summary">If disabled, only the original text is copied</string>
+    <string name="pref_translation_engine">Translator</string>
+    <string name="translation_engine_gemini">Google Gemini (better, needs an API key)</string>
+    <string name="translation_engine_free">Google Translate (free, no account)</string>
+    <string name="translation_engine_fallback_note">Gemini was not available: translated with Google Translate</string>
+    <string name="translation_use_free">Use Google Translate (free)</string>
+    <string name="pref_translation_fallback_to_free">Use Google Translate if Gemini fails</string>
+    <string name="pref_translation_fallback_to_free_summary">When Gemini is overloaded or unavailable, the page is translated with the free translator instead</string>
 </resources>

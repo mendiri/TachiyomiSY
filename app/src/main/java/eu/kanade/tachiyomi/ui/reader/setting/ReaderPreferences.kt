@@ -273,7 +273,12 @@ class ReaderPreferences(
 
     val readerBottomButtons: Preference<Set<String>> = preferenceStore.getStringSet("reader_bottom_buttons", ReaderBottomButton.BUTTONS_DEFAULTS)
 
-    // Page translation (Gemini) -->
+    // Page translation -->
+    val translationEngine: Preference<String> = preferenceStore.getString("translation_engine", "gemini")
+
+    val translationFallbackToFree: Preference<Boolean> =
+        preferenceStore.getBoolean("translation_fallback_to_free", true)
+
     val translationGeminiApiKey: Preference<String> = preferenceStore.getString("translation_gemini_api_key", "")
 
     val translationGeminiModel: Preference<String> = preferenceStore.getString("translation_gemini_model", "gemini-flash-latest")

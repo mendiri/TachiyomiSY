@@ -11,6 +11,8 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderBottomButton
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.translate.GeminiPageTranslator
+import eu.kanade.tachiyomi.ui.reader.translate.TranslationEngine
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import eu.kanade.tachiyomi.util.system.hasDisplayCutout
 import mihon.app.di.appGraph
@@ -89,21 +91,40 @@ object SettingsReaderScreen : SearchableSettings {
 
     @Composable
     private fun getTranslationGroup(readerPreferences: ReaderPreferences): Preference.PreferenceGroup {
+        val engine by readerPreferences.translationEngine.collectAsState()
+        val isGemini = TranslationEngine.fromValue(engine) == TranslationEngine.Gemini
         return Preference.PreferenceGroup(
             title = stringResource(SYMR.strings.pref_category_translation),
             preferenceItems = listOf(
+                Preference.PreferenceItem.ListPreference(
+                    preference = readerPreferences.translationEngine,
+                    entries = mapOf(
+                        TranslationEngine.Gemini.value to stringResource(SYMR.strings.translation_engine_gemini),
+                        TranslationEngine.Free.value to stringResource(SYMR.strings.translation_engine_free),
+                    ),
+                    title = stringResource(SYMR.strings.pref_translation_engine),
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    preference = readerPreferences.translationGeminiModel,
+                    entries = GeminiPageTranslator.MODELS.associateWith { it },
+                    title = stringResource(SYMR.strings.pref_translation_gemini_model),
+                    visible = isGemini,
+                ),
                 Preference.PreferenceItem.EditTextPreference(
                     preference = readerPreferences.translationGeminiApiKey,
                     title = stringResource(SYMR.strings.pref_translation_gemini_api_key),
                     subtitle = stringResource(SYMR.strings.pref_translation_gemini_api_key_summary),
+                    visible = isGemini,
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = readerPreferences.translationFallbackToFree,
+                    title = stringResource(SYMR.strings.pref_translation_fallback_to_free),
+                    subtitle = stringResource(SYMR.strings.pref_translation_fallback_to_free_summary),
+                    visible = isGemini,
                 ),
                 Preference.PreferenceItem.EditTextPreference(
                     preference = readerPreferences.translationTargetLanguage,
                     title = stringResource(SYMR.strings.pref_translation_target_language),
-                ),
-                Preference.PreferenceItem.EditTextPreference(
-                    preference = readerPreferences.translationGeminiModel,
-                    title = stringResource(SYMR.strings.pref_translation_gemini_model),
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = readerPreferences.translationCopyIncludesTranslation,

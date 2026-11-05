@@ -2,8 +2,6 @@ package eu.kanade.tachiyomi.ui.reader.translate
 
 import android.graphics.Bitmap
 import android.util.Base64
-import androidx.core.graphics.scale
-import ca.mpreg.imagedecoder.ImageDecoder
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -28,28 +26,13 @@ import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import tachiyomi.core.common.util.system.ImageUtil
 import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.util.concurrent.TimeUnit
-
-/** One block of text found on a page (a speech bubble, a caption...) and its translation. */
-data class TranslatedBlock(
-    val original: String,
-    val translation: String,
-)
-
-open class TranslationException(message: String) : Exception(message)
-
-/** The model is overloaded or rate limited: worth retrying later or with another model. */
-class TemporaryTranslationException(message: String) : TranslationException(message)
 
 /**
  * Reads the text of a page image and translates it with the Google Gemini API.
  *
- * The page image is sent to Gemini, which does both the text recognition and the translation, so
- * no OCR model has to be bundled with the app. Very tall images (webtoon strips) are sent in
- * several slices so the text keeps enough resolution to be read.
+ * The page image is sent to Gemini, which does both the text recognition and the translation.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -70,55 +53,19 @@ class GeminiPageTranslator(
     val isConfigured: Boolean
         get() = readerPreferences.translationGeminiApiKey.get().isNotBlank()
 
-    suspend fun translate(openStream: () -> InputStream): List<TranslatedBlock> = withContext(Dispatchers.IO) {
+    suspend fun translate(slices: List<Bitmap>): List<TranslatedBlock> = withContext(Dispatchers.IO) {
         val apiKey = readerPreferences.translationGeminiApiKey.get().trim()
         if (apiKey.isBlank()) throw TranslationException("Missing Gemini API key")
         val model = readerPreferences.translationGeminiModel.get().trim().ifBlank { DEFAULT_MODEL }
         val target = readerPreferences.translationTargetLanguage.get().trim().ifBlank { "Spanish" }
 
-        val slices = decodeSlices(openStream)
-        slices.flatMap { jpeg -> requestWithRetries(apiKey, model, target, jpeg) }
-    }
-
-    /** Decodes the page and returns it as one or more JPEG slices ready to be sent. */
-    private fun decodeSlices(openStream: () -> InputStream): List<ByteArray> {
-        val source: Bitmap = try {
-            openStream().use { stream ->
-                with(ImageUtil) {
-                    ImageDecoder.open(stream).use { decoder -> decoder.decodeNext().use { it.toBitmap() } }
-                }
-            }
-        } catch (e: Exception) {
-            throw TranslationException("Could not decode the page image: ${e.message}")
-        }
-
-        val bitmap = if (source.width > MAX_WIDTH) {
-            val height = (source.height.toLong() * MAX_WIDTH / source.width).toInt().coerceAtLeast(1)
-            source.scale(MAX_WIDTH, height).also { if (it !== source) source.recycle() }
-        } else {
-            source
-        }
-
-        val slices = mutableListOf<ByteArray>()
-        var top = 0
-        while (top < bitmap.height) {
-            val remaining = bitmap.height - top
-            // Don't leave a tiny strip to be sent on its own: keep it in this slice instead
-            val sliceHeight = if (remaining <= MAX_SLICE_HEIGHT + MIN_SLICE_HEIGHT) remaining else MAX_SLICE_HEIGHT
-            val slice = if (top == 0 && sliceHeight == bitmap.height) {
-                bitmap
-            } else {
-                Bitmap.createBitmap(bitmap, 0, top, bitmap.width, sliceHeight)
-            }
-            slices += ByteArrayOutputStream().use { out ->
+        slices.flatMap { slice ->
+            val jpeg = ByteArrayOutputStream().use { out ->
                 slice.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
                 out.toByteArray()
             }
-            if (slice !== bitmap) slice.recycle()
-            top += sliceHeight
+            requestWithRetries(apiKey, model, target, jpeg)
         }
-        bitmap.recycle()
-        return slices
     }
 
     /**
@@ -244,14 +191,19 @@ class GeminiPageTranslator(
 
     companion object {
         const val DEFAULT_MODEL = "gemini-flash-latest"
-        private val FALLBACK_MODELS = listOf("gemini-flash-lite-latest", "gemini-2.5-flash")
+        val MODELS = listOf(
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-pro-latest",
+            "gemini-2.5-pro",
+        )
+        private val FALLBACK_MODELS = listOf("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash")
         private val TEMPORARY_ERROR_CODES = setOf(429, 500, 502, 503, 504)
         private const val RETRIES_PER_MODEL = 2
         private const val RETRY_DELAY_MS = 2_000L
         private const val API_URL = "https://generativelanguage.googleapis.com/v1beta"
-        private const val MAX_WIDTH = 1536
-        private const val MAX_SLICE_HEIGHT = 3072
-        private const val MIN_SLICE_HEIGHT = 768
         private const val JPEG_QUALITY = 90
     }
 }

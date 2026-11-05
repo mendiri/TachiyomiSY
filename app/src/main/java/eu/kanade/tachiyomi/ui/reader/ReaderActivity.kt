@@ -84,6 +84,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.translate.TranslationEngine
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
@@ -404,6 +405,10 @@ class ReaderActivity : BaseActivity() {
                     onRetry = { viewModel.openTranslation(dialog.page, forceRefresh = true) },
                     onSaveApiKey = {
                         readerPreferences.translationGeminiApiKey.set(it)
+                        viewModel.openTranslation(dialog.page)
+                    },
+                    onUseFreeTranslator = {
+                        readerPreferences.translationEngine.set(TranslationEngine.Free.value)
                         viewModel.openTranslation(dialog.page)
                     },
                 )

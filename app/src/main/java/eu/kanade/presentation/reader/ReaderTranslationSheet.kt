@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel.TranslationResult
 import eu.kanade.tachiyomi.ui.reader.translate.TranslatedBlock
+import eu.kanade.tachiyomi.ui.reader.translate.TranslationEngine
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.ContentCopy
@@ -59,6 +60,7 @@ fun ReaderTranslationSheet(
     onDismissRequest: () -> Unit,
     onRetry: () -> Unit,
     onSaveApiKey: (String) -> Unit,
+    onUseFreeTranslator: () -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -98,14 +100,14 @@ fun ReaderTranslationSheet(
                         maxLines = 2,
                     )
                 }
-                if (result is TranslationResult.Success && result.blocks.isNotEmpty()) {
-                    IconButton(onClick = { context.copyText(formatAll(result.blocks)) }) {
+                if (result is TranslationResult.Success && result.outcome.blocks.isNotEmpty()) {
+                    IconButton(onClick = { context.copyText(formatAll(result.outcome.blocks)) }) {
                         Icon(
                             imageVector = MaterialSymbols.Rounded.ContentCopy,
                             contentDescription = stringResource(SYMR.strings.translation_copy_all),
                         )
                     }
-                    IconButton(onClick = { context.shareText(formatAll(result.blocks)) }) {
+                    IconButton(onClick = { context.shareText(formatAll(result.outcome.blocks)) }) {
                         Icon(
                             imageVector = MaterialSymbols.Rounded.Share,
                             contentDescription = stringResource(SYMR.strings.translation_share_all),
@@ -141,7 +143,7 @@ fun ReaderTranslationSheet(
                     }
                 }
                 TranslationResult.MissingApiKey -> {
-                    ApiKeyForm(onSaveApiKey = onSaveApiKey)
+                    ApiKeyForm(onSaveApiKey = onSaveApiKey, onUseFreeTranslator = onUseFreeTranslator)
                 }
                 is TranslationResult.Error -> {
                     Column(
@@ -168,7 +170,26 @@ fun ReaderTranslationSheet(
                     }
                 }
                 is TranslationResult.Success -> {
-                    if (result.blocks.isEmpty()) {
+                    val outcome = result.outcome
+                    Text(
+                        text = when {
+                            outcome.usedFallback -> stringResource(SYMR.strings.translation_engine_fallback_note)
+                            outcome.engine == TranslationEngine.Free -> stringResource(SYMR.strings.translation_engine_free)
+                            else -> stringResource(SYMR.strings.translation_engine_gemini)
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (outcome.usedFallback) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.padding(
+                            start = MaterialTheme.padding.medium,
+                            end = MaterialTheme.padding.medium,
+                            top = MaterialTheme.padding.small,
+                        ),
+                    )
+                    if (outcome.blocks.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -185,7 +206,7 @@ fun ReaderTranslationSheet(
                                 MaterialTheme.padding.medium,
                             ),
                         ) {
-                            itemsIndexed(result.blocks) { _, block ->
+                            itemsIndexed(result.outcome.blocks) { _, block ->
                                 TranslatedBlockItem(
                                     block = block,
                                     onCopy = { context.copyText(format(block)) },
@@ -245,7 +266,7 @@ private fun TranslatedBlockItem(
 }
 
 @Composable
-private fun ApiKeyForm(onSaveApiKey: (String) -> Unit) {
+private fun ApiKeyForm(onSaveApiKey: (String) -> Unit, onUseFreeTranslator: () -> Unit) {
     var apiKey by remember { mutableStateOf("") }
     Column(
         modifier = Modifier
@@ -266,6 +287,9 @@ private fun ApiKeyForm(onSaveApiKey: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
         )
         Row(modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onUseFreeTranslator) {
+                Text(stringResource(SYMR.strings.translation_use_free))
+            }
             Spacer(modifier = Modifier.weight(1f))
             TextButton(
                 onClick = { onSaveApiKey(apiKey) },
