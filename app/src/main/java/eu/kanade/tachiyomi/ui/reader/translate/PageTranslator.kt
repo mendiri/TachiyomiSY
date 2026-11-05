@@ -32,6 +32,9 @@ enum class TranslationEngine(val value: String) {
 
     /** On-device text recognition (ML Kit) + Google Translate. Free, no account needed. */
     Free("free"),
+
+    /** On-device text recognition (ML Kit) + Microsoft Azure Translator. Needs an Azure key. */
+    Azure("azure"),
     ;
 
     companion object {
@@ -42,7 +45,7 @@ enum class TranslationEngine(val value: String) {
 data class TranslationOutcome(
     val blocks: List<TranslatedBlock>,
     val engine: TranslationEngine,
-    /** True when Gemini failed and the free translator was used instead. */
+    /** True when Gemini failed and another translator was used instead. */
     val usedFallback: Boolean,
 )
 
@@ -60,7 +63,7 @@ class PageTranslator(
 
     /** Whether the chosen translator can be used without asking the user for anything. */
     val isReady: Boolean
-        get() = engine == TranslationEngine.Free || gemini.isConfigured
+        get() = engine != TranslationEngine.Gemini || gemini.isConfigured
 
     suspend fun translate(
         openStream: () -> InputStream,
@@ -68,20 +71,38 @@ class PageTranslator(
     ): TranslationOutcome = withContext(Dispatchers.IO) {
         val slices = decodeSlices(openStream)
         try {
-            if (engine == TranslationEngine.Free) {
-                return@withContext TranslationOutcome(free.translate(slices, rightToLeft), TranslationEngine.Free, false)
+            when (engine) {
+                TranslationEngine.Free, TranslationEngine.Azure -> {
+                    val useAzure = engine == TranslationEngine.Azure
+                    val blocks = free.translate(slices, rightToLeft, useAzure)
+                    return@withContext TranslationOutcome(blocks, engine, false)
+                }
+                TranslationEngine.Gemini -> Unit
             }
             try {
                 TranslationOutcome(gemini.translate(slices), TranslationEngine.Gemini, false)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 if (!readerPreferences.translationFallbackToFree.get()) throw e
-                logcat(LogPriority.WARN, e) { "Gemini failed, using the free translator" }
-                TranslationOutcome(free.translate(slices, rightToLeft), TranslationEngine.Free, true)
+                logcat(LogPriority.WARN, e) { "Gemini failed, using another translator" }
+                fallback(slices, rightToLeft)
             }
         } finally {
             slices.forEach { it.recycle() }
         }
+    }
+
+    /** Azure first when it's set up (official API), Google Translate otherwise or if Azure fails. */
+    private suspend fun fallback(slices: List<Bitmap>, rightToLeft: Boolean): TranslationOutcome {
+        if (free.isAzureConfigured) {
+            try {
+                return TranslationOutcome(free.translate(slices, rightToLeft, true), TranslationEngine.Azure, true)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                logcat(LogPriority.WARN, e) { "Azure failed, using Google Translate" }
+            }
+        }
+        return TranslationOutcome(free.translate(slices, rightToLeft, false), TranslationEngine.Free, true)
     }
 
     /**

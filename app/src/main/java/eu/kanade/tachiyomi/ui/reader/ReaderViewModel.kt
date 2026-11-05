@@ -58,6 +58,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.translate.PageTranslator
+import eu.kanade.tachiyomi.ui.reader.translate.TranslationEngine
 import eu.kanade.tachiyomi.ui.reader.translate.TranslationOutcome
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
@@ -1256,6 +1257,13 @@ class ReaderViewModel(
     /** Reads and translates the text of [page], showing the result in a sheet. */
     fun openTranslation(page: ReaderPage?, forceRefresh: Boolean = false) {
         if (page == null) return
+        if (pageTranslator.engine == TranslationEngine.Azure &&
+            readerPreferences.translationAzureKey.get().isBlank()
+        ) {
+            val message = context.stringResource(SYMR.strings.translation_missing_azure_key)
+            mutableState.update { it.copy(dialog = Dialog.Translation(page, TranslationResult.Error(message))) }
+            return
+        }
         if (!pageTranslator.isReady) {
             mutableState.update { it.copy(dialog = Dialog.Translation(page, TranslationResult.MissingApiKey)) }
             return

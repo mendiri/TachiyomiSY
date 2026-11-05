@@ -564,8 +564,14 @@
     <string name="pref_translation_engine">Traductor</string>
     <string name="translation_engine_gemini">Google Gemini (mejor, necesita clave de API)</string>
     <string name="translation_engine_free">Google Translate (gratis, sin cuenta)</string>
-    <string name="translation_engine_fallback_note">Gemini no estaba disponible: traducido con Google Translate</string>
+    <string name="translation_engine_fallback_note">Gemini no estaba disponible: traducido con %1$s</string>
     <string name="translation_use_free">Usar Google Translate (gratis)</string>
-    <string name="pref_translation_fallback_to_free">Usar Google Translate si Gemini falla</string>
-    <string name="pref_translation_fallback_to_free_summary">Si Gemini está saturado o no disponible, la página se traduce con el traductor gratuito</string>
+    <string name="pref_translation_fallback_to_free">Usar otro traductor si Gemini falla</string>
+    <string name="pref_translation_fallback_to_free_summary">Si Gemini está saturado o no disponible, la página se traduce con Microsoft Azure (si tienes clave) o con Google Translate</string>
+    <string name="translation_engine_azure">Microsoft Azure Translator (necesita clave)</string>
+    <string name="translation_missing_azure_key">Añade tu clave de Microsoft Azure Translator en Ajustes → Lector → Traducción de páginas.</string>
+    <string name="pref_translation_azure_key">Clave de Microsoft Azure</string>
+    <string name="pref_translation_azure_key_summary">Clave de tu recurso de Azure Translator. Opcional si usas Gemini: si Gemini falla, se prueba antes que Google Translate</string>
+    <string name="pref_translation_azure_region">Región de Microsoft Azure</string>
+    <string name="pref_translation_azure_region_summary">Ubicación del recurso, por ejemplo westeurope. Déjalo vacío si es global</string>
 </resources>

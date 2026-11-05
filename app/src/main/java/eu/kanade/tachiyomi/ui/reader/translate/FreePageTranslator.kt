@@ -20,17 +20,25 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Free translator that needs no account or API key: the text is read on the device with ML Kit
- * text recognition and translated with the public Google Translate web endpoint.
+ * Reads the text on the device with ML Kit text recognition and translates it with Google
+ * Translate (public web endpoint: free, no account or key) or Microsoft Azure Translator.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -41,13 +49,26 @@ class FreePageTranslator(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** @param rightToLeft whether the page is read right to left (Japanese manga). */
+    val isAzureConfigured: Boolean
+        get() = readerPreferences.translationAzureKey.get().isNotBlank()
+
+    /**
+     * @param rightToLeft whether the page is read right to left (Japanese manga).
+     * @param useAzure translate with Microsoft Azure instead of Google Translate.
+     */
     suspend fun translate(
         slices: List<Bitmap>,
         rightToLeft: Boolean,
+        useAzure: Boolean,
     ): List<TranslatedBlock> = withContext(Dispatchers.IO) {
         val originals = slices.flatMap { recognize(it, rightToLeft) }
         val target = languageCode(readerPreferences.translationTargetLanguage.get())
+        if (originals.isEmpty()) return@withContext emptyList()
+        if (useAzure) {
+            return@withContext originals.zip(translateWithAzure(originals, target)) { original, translation ->
+                TranslatedBlock(original, translation)
+            }
+        }
         val permits = Semaphore(MAX_PARALLEL_REQUESTS)
         originals
             .map { original ->
@@ -115,6 +136,46 @@ class FreePageTranslator(
         return result.toString()
     }
 
+    /** Translates all the blocks in one request with Azure Translator (API v3). */
+    private fun translateWithAzure(texts: List<String>, target: String): List<String> {
+        val key = readerPreferences.translationAzureKey.get().trim()
+        if (key.isBlank()) throw TranslationException("Missing Microsoft Azure key")
+        val region = readerPreferences.translationAzureRegion.get().trim()
+
+        val body = buildJsonArray {
+            texts.forEach { text -> addJsonObject { put("Text", text) } }
+        }
+        val url = AZURE_URL.toHttpUrl().newBuilder()
+            .addQueryParameter("api-version", "3.0")
+            .addQueryParameter("to", target)
+            .build()
+        val request = Request.Builder()
+            .url(url)
+            .header("Ocp-Apim-Subscription-Key", key)
+            .apply { if (region.isNotEmpty() && region != "global") header("Ocp-Apim-Subscription-Region", region) }
+            .post(body.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        networkHelper.client.newCall(request).execute().use { response ->
+            val text = response.body.string()
+            if (!response.isSuccessful) {
+                val message = runCatching {
+                    json.parseToJsonElement(text).jsonObject["error"]?.jsonObject
+                        ?.get("message")?.jsonPrimitive?.contentOrNull
+                }.getOrNull()
+                val error = "Microsoft Azure (HTTP ${response.code}): ${message ?: response.message}"
+                if (response.code == 429 || response.code >= 500) throw TemporaryTranslationException(error)
+                throw TranslationException(error)
+            }
+            val results = json.parseToJsonElement(text) as? JsonArray
+                ?: throw TranslationException("Unexpected response from Microsoft Azure")
+            return texts.indices.map { i ->
+                (results.getOrNull(i) as? JsonObject)?.get("translations")?.jsonArray?.firstOrNull()
+                    ?.jsonObject?.get("text")?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+            }
+        }
+    }
+
     private fun translateText(text: String, target: String): String {
         val url = TRANSLATE_URL.toHttpUrl().newBuilder()
             .addQueryParameter("client", "gtx")
@@ -141,6 +202,7 @@ class FreePageTranslator(
 
     companion object {
         private const val TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
+        private const val AZURE_URL = "https://api.cognitive.microsofttranslator.com/translate"
         private const val MAX_PARALLEL_REQUESTS = 4
         private const val ROWS_PER_PAGE = 12
         private const val MIN_LETTERS = 2

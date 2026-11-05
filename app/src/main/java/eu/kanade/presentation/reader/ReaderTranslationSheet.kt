@@ -172,10 +172,16 @@ fun ReaderTranslationSheet(
                 is TranslationResult.Success -> {
                     val outcome = result.outcome
                     Text(
-                        text = when {
-                            outcome.usedFallback -> stringResource(SYMR.strings.translation_engine_fallback_note)
-                            outcome.engine == TranslationEngine.Free -> stringResource(SYMR.strings.translation_engine_free)
-                            else -> stringResource(SYMR.strings.translation_engine_gemini)
+                        text = when (outcome.engine) {
+                            TranslationEngine.Gemini -> stringResource(SYMR.strings.translation_engine_gemini)
+                            TranslationEngine.Free -> stringResource(SYMR.strings.translation_engine_free)
+                            TranslationEngine.Azure -> stringResource(SYMR.strings.translation_engine_azure)
+                        }.let {
+                            if (outcome.usedFallback) {
+                                stringResource(SYMR.strings.translation_engine_fallback_note, it)
+                            } else {
+                                it
+                            }
                         },
                         style = MaterialTheme.typography.labelMedium,
                         color = if (outcome.usedFallback) {

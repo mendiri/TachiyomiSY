@@ -93,6 +93,8 @@ object SettingsReaderScreen : SearchableSettings {
     private fun getTranslationGroup(readerPreferences: ReaderPreferences): Preference.PreferenceGroup {
         val engine by readerPreferences.translationEngine.collectAsState()
         val isGemini = TranslationEngine.fromValue(engine) == TranslationEngine.Gemini
+        val isAzure = TranslationEngine.fromValue(engine) == TranslationEngine.Azure
+        val fallback by readerPreferences.translationFallbackToFree.collectAsState()
         return Preference.PreferenceGroup(
             title = stringResource(SYMR.strings.pref_category_translation),
             preferenceItems = listOf(
@@ -101,6 +103,7 @@ object SettingsReaderScreen : SearchableSettings {
                     entries = mapOf(
                         TranslationEngine.Gemini.value to stringResource(SYMR.strings.translation_engine_gemini),
                         TranslationEngine.Free.value to stringResource(SYMR.strings.translation_engine_free),
+                        TranslationEngine.Azure.value to stringResource(SYMR.strings.translation_engine_azure),
                     ),
                     title = stringResource(SYMR.strings.pref_translation_engine),
                 ),
@@ -121,6 +124,18 @@ object SettingsReaderScreen : SearchableSettings {
                     title = stringResource(SYMR.strings.pref_translation_fallback_to_free),
                     subtitle = stringResource(SYMR.strings.pref_translation_fallback_to_free_summary),
                     visible = isGemini,
+                ),
+                Preference.PreferenceItem.EditTextPreference(
+                    preference = readerPreferences.translationAzureKey,
+                    title = stringResource(SYMR.strings.pref_translation_azure_key),
+                    subtitle = stringResource(SYMR.strings.pref_translation_azure_key_summary),
+                    visible = isAzure || (isGemini && fallback),
+                ),
+                Preference.PreferenceItem.EditTextPreference(
+                    preference = readerPreferences.translationAzureRegion,
+                    title = stringResource(SYMR.strings.pref_translation_azure_region),
+                    subtitle = stringResource(SYMR.strings.pref_translation_azure_region_summary),
+                    visible = isAzure || (isGemini && fallback),
                 ),
                 Preference.PreferenceItem.EditTextPreference(
                     preference = readerPreferences.translationTargetLanguage,

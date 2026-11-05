@@ -711,8 +711,14 @@ When this option is disabled, the gestures still work the same way, but those in
     <string name="pref_translation_engine">Translator</string>
     <string name="translation_engine_gemini">Google Gemini (better, needs an API key)</string>
     <string name="translation_engine_free">Google Translate (free, no account)</string>
-    <string name="translation_engine_fallback_note">Gemini was not available: translated with Google Translate</string>
+    <string name="translation_engine_fallback_note">Gemini was not available: translated with %1$s</string>
     <string name="translation_use_free">Use Google Translate (free)</string>
-    <string name="pref_translation_fallback_to_free">Use Google Translate if Gemini fails</string>
-    <string name="pref_translation_fallback_to_free_summary">When Gemini is overloaded or unavailable, the page is translated with the free translator instead</string>
+    <string name="pref_translation_fallback_to_free">Use another translator if Gemini fails</string>
+    <string name="pref_translation_fallback_to_free_summary">When Gemini is overloaded or unavailable, the page is translated with Microsoft Azure (if a key is set) or Google Translate</string>
+    <string name="translation_engine_azure">Microsoft Azure Translator (needs a key)</string>
+    <string name="translation_missing_azure_key">Add your Microsoft Azure Translator key in Settings → Reader → Page translation.</string>
+    <string name="pref_translation_azure_key">Microsoft Azure key</string>
+    <string name="pref_translation_azure_key_summary">Key of your Azure Translator resource. Optional if Gemini is used: it's tried before Google Translate when Gemini fails</string>
+    <string name="pref_translation_azure_region">Microsoft Azure region</string>
+    <string name="pref_translation_azure_region_summary">Location of the resource, for example westeurope. Leave empty if it's global</string>
 </resources>

@@ -276,6 +276,10 @@ class ReaderPreferences(
     // Page translation -->
     val translationEngine: Preference<String> = preferenceStore.getString("translation_engine", "gemini")
 
+    val translationAzureKey: Preference<String> = preferenceStore.getString("translation_azure_key", "")
+
+    val translationAzureRegion: Preference<String> = preferenceStore.getString("translation_azure_region", "")
+
     val translationFallbackToFree: Preference<Boolean> =
         preferenceStore.getBoolean("translation_fallback_to_free", true)
 
