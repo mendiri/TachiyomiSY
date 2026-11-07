@@ -15,7 +15,10 @@ internal class TextLine(val text: String, val box: Rect)
  * The lines of one speech bubble (or of one caption). [box] is the area to cover with the
  * translation: the inside of the bubble when it was found, or the text grown a little otherwise.
  */
-internal class TextGroup(val lines: List<TextLine>, val box: Rect, val inBubble: Boolean)
+internal class TextGroup(val lines: List<TextLine>, val box: Rect, val inBubble: Boolean) {
+    /** Height of the biggest line: sound effects are drawn much bigger than dialogue. */
+    val maxLineHeight: Int get() = lines.maxOf { it.box.height() }
+}
 
 /**
  * Groups the lines of text by speech bubble.
@@ -56,8 +59,17 @@ internal object BubbleGrouper {
             // A light area much bigger than its text is a panel background, not a bubble
             if (region == null || bubble == null || bubble.area() > textBox.area() * MAX_BUBBLE_TO_TEXT_RATIO) {
                 loose += groupLines
-            } else {
+                return@forEach
+            }
+            // Bubbles touching each other can end up as one area: their texts are separate
+            // columns, so split them and cover each text on its own
+            val columns = groupByProximity(groupLines)
+            if (columns.size == 1) {
                 groups += TextGroup(groupLines, coverBox(bubble, textBox), inBubble = true)
+            } else {
+                columns.forEach { column ->
+                    groups += TextGroup(column, column.union().grown(LOOSE_GROW_X, LOOSE_GROW_Y), inBubble = true)
+                }
             }
         }
         groups += groupByProximity(loose).map { groupLines ->
@@ -78,21 +90,31 @@ internal object BubbleGrouper {
         return inner
     }
 
-    /** Joins lines that are stacked one over the other, as the lines of an open bubble are. */
+    /**
+     * Joins lines that are stacked one over the other, as the lines of a bubble are. Lines side
+     * by side (not overlapping horizontally) stay apart, as they belong to different bubbles.
+     */
     private fun groupByProximity(lines: List<TextLine>): List<List<TextLine>> {
-        val sorted = lines.sortedBy { it.box.top }
-        val groups = mutableListOf<MutableList<TextLine>>()
-        for (line in sorted) {
-            val group = groups.lastOrNull { group ->
-                val last = group.last().box
-                val lineHeight = max(last.height(), line.box.height())
-                val gap = line.box.top - last.bottom
-                val overlap = min(last.right, line.box.right) - max(last.left, line.box.left)
-                gap <= lineHeight * MAX_LINE_GAP && overlap > 0
-            }
-            if (group != null) group += line else groups += mutableListOf(line)
+        val parent = IntArray(lines.size) { it }
+        fun find(i: Int): Int {
+            var root = i
+            while (parent[root] != root) root = parent[root]
+            return root
         }
-        return groups
+        for (i in lines.indices) {
+            for (j in i + 1..<lines.size) {
+                val a = lines[i].box
+                val b = lines[j].box
+                val lineHeight = max(a.height(), b.height())
+                val gap = max(a.top, b.top) - min(a.bottom, b.bottom)
+                val overlap = min(a.right, b.right) - max(a.left, b.left)
+                val narrower = min(a.width(), b.width())
+                if (gap <= lineHeight * MAX_LINE_GAP && overlap > narrower * MIN_HORIZONTAL_OVERLAP) {
+                    parent[find(j)] = find(i)
+                }
+            }
+        }
+        return lines.indices.groupBy { find(it) }.values.map { indices -> indices.map { lines[it] } }
     }
 
     /** The light areas of the image, found on demand by filling from a starting point. */
@@ -107,10 +129,30 @@ internal object BubbleGrouper {
         init {
             val pixels = IntArray(width * height)
             bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+            val dark = BooleanArray(width * height)
             for (i in pixels.indices) {
                 val p = pixels[i]
                 val luminance = (Color.red(p) * 299 + Color.green(p) * 587 + Color.blue(p) * 114) / 1000
-                light[i] = luminance >= LIGHT_THRESHOLD
+                dark[i] = luminance < LIGHT_THRESHOLD
+            }
+            // Thicken the dark lines by a pixel: it closes the small gaps of thin outlines, so
+            // the filling doesn't leak from a bubble into the one next to it
+            for (y in 0..<height) {
+                for (x in 0..<width) {
+                    var isLight = true
+                    loop@ for (dy in -1..1) {
+                        val ny = y + dy
+                        if (ny !in 0..<height) continue
+                        for (dx in -1..1) {
+                            val nx = x + dx
+                            if (nx in 0..<width && dark[ny * width + nx]) {
+                                isLight = false
+                                break@loop
+                            }
+                        }
+                    }
+                    light[y * width + x] = isLight
+                }
             }
         }
 
@@ -157,10 +199,9 @@ internal object BubbleGrouper {
                 if (px > right) right = px
                 if (py < top) top = py
                 if (py > bottom) bottom = py
-                // Touching the edge of the image or growing too big: it's not a closed bubble
-                if (px == 0 || py == 0 || px == width - 1 || py == height - 1 || area > maxArea) {
-                    leaked = true
-                }
+                // Growing too big: it's not a closed bubble. Touching the edge of the image is
+                // fine, as bubbles are often cut by it.
+                if (area > maxArea) leaked = true
                 if (px > 0) size = push(i - 1, id, size)
                 if (px < width - 1) size = push(i + 1, id, size)
                 if (py > 0) size = push(i - width, id, size)
@@ -207,8 +248,8 @@ internal object BubbleGrouper {
 
     private fun List<TextLine>.union(): Rect = Rect(first().box).also { rect -> forEach { rect.union(it.box) } }
 
-    private const val MAX_DETECTION_WIDTH = 1024
-    private const val LIGHT_THRESHOLD = 170
+    private const val MAX_DETECTION_WIDTH = 1280
+    private const val LIGHT_THRESHOLD = 200
 
     /** A bubble can't take more than this part of the image. */
     private const val MAX_BUBBLE_AREA = 0.2f
@@ -216,8 +257,9 @@ internal object BubbleGrouper {
     /** A bubble is at most this many times bigger than the text inside it. */
     private const val MAX_BUBBLE_TO_TEXT_RATIO = 10
 
-    private const val BUBBLE_INSET = 0.1f
+    private const val BUBBLE_INSET = 0.08f
     private const val LOOSE_GROW_X = 0.15f
     private const val LOOSE_GROW_Y = 0.2f
     private const val MAX_LINE_GAP = 0.9f
+    private const val MIN_HORIZONTAL_OVERLAP = 0.2f
 }

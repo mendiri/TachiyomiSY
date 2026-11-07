@@ -40,6 +40,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.coerceAtLeast
@@ -61,6 +62,7 @@ import mihon.icons.sy.materialsymbols.rounded.Translate
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.sy.SYMR
 import tachiyomi.presentation.core.i18n.stringResource
+import kotlin.math.min
 
 /**
  * Shows the page with the translation drawn over every bubble. Tapping a bubble switches between
@@ -279,21 +281,38 @@ private fun Bubble(
             .padding(3.dp),
         contentAlignment = Alignment.Center,
     ) {
-        BasicText(
-            text = if (showOriginal) block.original else block.translation,
-            style = TextStyle(
-                color = Color.Black,
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Medium,
-            ),
-            autoSize = TextAutoSize.StepBased(
-                minFontSize = 6.sp,
-                maxFontSize = 22.sp,
-                stepSize = 0.5.sp,
-            ),
+        val text = if (showOriginal) block.original else block.translation
+        val style = TextStyle(
+            color = Color.Black,
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Medium,
         )
+        BoxWithConstraints(contentAlignment = Alignment.Center) {
+            // The size is chosen to fill the bubble, but a word must never be cut in two: the
+            // longest word has to fit on one line
+            val measurer = rememberTextMeasurer()
+            val availableWidth = constraints.maxWidth
+            val maxFontSize = remember(text, availableWidth) {
+                val longestWord = text.split(' ', '\n').maxByOrNull { it.length }.orEmpty()
+                val wordWidth = measurer.measure(longestWord, style.copy(fontSize = MAX_FONT_SIZE.sp)).size.width
+                val ratio = if (wordWidth > 0) availableWidth.toFloat() / wordWidth else 1f
+                (MAX_FONT_SIZE * min(1f, ratio * 0.95f)).coerceAtLeast(MIN_FONT_SIZE / 2)
+            }
+            BasicText(
+                text = text,
+                style = style,
+                autoSize = TextAutoSize.StepBased(
+                    minFontSize = min(MIN_FONT_SIZE, maxFontSize).sp,
+                    maxFontSize = maxFontSize.sp,
+                    stepSize = 0.5.sp,
+                ),
+            )
+        }
     }
 }
+
+private const val MIN_FONT_SIZE = 6f
+private const val MAX_FONT_SIZE = 22f
 
 private const val LONG_STRIP_RATIO = 2.5f
 private val MIN_BUBBLE_WIDTH = 36.dp

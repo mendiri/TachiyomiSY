@@ -110,6 +110,7 @@ class FreePageTranslator(
             .mapNotNull { line -> line.boundingBox?.let { TextLine(line.text, it) } }
 
         val rowHeight = (bitmap.height / ROWS_PER_PAGE).coerceAtLeast(1)
+        val usualLineHeight = lines.map { it.box.height() }.sorted().getOrNull(lines.size / 2) ?: 0
         return BubbleGrouper.group(bitmap, lines)
             .sortedWith(
                 compareBy<TextGroup> { it.box.top / rowHeight }
@@ -121,8 +122,12 @@ class FreePageTranslator(
             }
             .filter { (group, original) ->
                 original.count { it.isLetter() } >= MIN_LETTERS &&
-                    // A single word outside of any bubble is almost always a sound effect
-                    (group.inBubble || original.trim().contains(' '))
+                    // A single big word outside of any bubble is almost always a sound effect
+                    (
+                        group.inBubble ||
+                            original.trim().contains(' ') ||
+                            group.maxLineHeight <= usualLineHeight * SOUND_EFFECT_SIZE
+                        )
             }
             .map { (group, original) -> TranslatedBlock(original, "", group.box.toPageBox(slice)) }
     }
@@ -292,6 +297,7 @@ class FreePageTranslator(
         private const val ROWS_PER_PAGE = 12
         private const val MIN_LETTERS = 2
         private const val MIN_CONFIDENCE = 0.5f
+        private const val SOUND_EFFECT_SIZE = 1.8f
         private const val MAX_ANGLE = 20f
         private val STANDALONE_I = Regex("\\bi\\b")
 
