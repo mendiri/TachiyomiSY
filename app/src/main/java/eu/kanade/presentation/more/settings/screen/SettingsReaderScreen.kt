@@ -94,6 +94,7 @@ object SettingsReaderScreen : SearchableSettings {
         val engine by readerPreferences.translationEngine.collectAsState()
         val isGemini = TranslationEngine.fromValue(engine) == TranslationEngine.Gemini
         val isAzure = TranslationEngine.fromValue(engine) == TranslationEngine.Azure
+        val isDeepL = TranslationEngine.fromValue(engine) == TranslationEngine.DeepL
         val fallback by readerPreferences.translationFallbackToFree.collectAsState()
         return Preference.PreferenceGroup(
             title = stringResource(SYMR.strings.pref_category_translation),
@@ -103,6 +104,7 @@ object SettingsReaderScreen : SearchableSettings {
                     entries = mapOf(
                         TranslationEngine.Gemini.value to stringResource(SYMR.strings.translation_engine_gemini),
                         TranslationEngine.Free.value to stringResource(SYMR.strings.translation_engine_free),
+                        TranslationEngine.DeepL.value to stringResource(SYMR.strings.translation_engine_deepl),
                         TranslationEngine.Azure.value to stringResource(SYMR.strings.translation_engine_azure),
                     ),
                     title = stringResource(SYMR.strings.pref_translation_engine),
@@ -134,6 +136,12 @@ object SettingsReaderScreen : SearchableSettings {
                     title = stringResource(SYMR.strings.pref_translation_fallback_to_free),
                     subtitle = stringResource(SYMR.strings.pref_translation_fallback_to_free_summary),
                     visible = isGemini,
+                ),
+                Preference.PreferenceItem.EditTextPreference(
+                    preference = readerPreferences.translationDeepLKey,
+                    title = stringResource(SYMR.strings.pref_translation_deepl_key),
+                    subtitle = stringResource(SYMR.strings.pref_translation_deepl_key_summary),
+                    visible = isDeepL || (isGemini && fallback),
                 ),
                 Preference.PreferenceItem.EditTextPreference(
                     preference = readerPreferences.translationAzureKey,

@@ -204,6 +204,7 @@ private fun TranslationOutcome.engineLabel(): String {
         TranslationEngine.Gemini -> "Gemini"
         TranslationEngine.Free -> "Google Translate"
         TranslationEngine.Azure -> "Microsoft Azure"
+        TranslationEngine.DeepL -> "DeepL"
     }
     return if (usedFallback) stringResource(SYMR.strings.translation_engine_fallback_note, name) else name
 }

@@ -714,7 +714,7 @@ When this option is disabled, the gestures still work the same way, but those in
     <string name="translation_engine_fallback_note">Gemini was not available: translated with %1$s</string>
     <string name="translation_use_free">Use Google Translate (free)</string>
     <string name="pref_translation_fallback_to_free">Use another translator if Gemini fails</string>
-    <string name="pref_translation_fallback_to_free_summary">When Gemini is overloaded or unavailable, the page is translated with Microsoft Azure (if a key is set) or Google Translate</string>
+    <string name="pref_translation_fallback_to_free_summary">When Gemini is overloaded or unavailable, the page is translated with DeepL or Microsoft Azure (if a key is set) or Google Translate</string>
     <string name="translation_engine_azure">Microsoft Azure Translator (needs a key)</string>
     <string name="translation_missing_azure_key">Add your Microsoft Azure Translator key in Settings → Reader → Page translation.</string>
     <string name="pref_translation_azure_key">Microsoft Azure key</string>
@@ -728,4 +728,8 @@ When this option is disabled, the gestures still work the same way, but those in
     <string name="pref_translation_display_mode">Show translation</string>
     <string name="pref_translation_display_overlay">Over the bubbles</string>
     <string name="pref_translation_display_list">As a list</string>
+    <string name="translation_engine_deepl">DeepL (needs a free key)</string>
+    <string name="translation_missing_deepl_key">Add your DeepL key in Settings → Reader → Page translation.</string>
+    <string name="pref_translation_deepl_key">DeepL key</string>
+    <string name="pref_translation_deepl_key_summary">Create one for free at deepl.com/pro-api (DeepL API Free plan). Optional if Gemini is used: it's tried first when Gemini fails</string>
 </resources>

@@ -567,7 +567,7 @@
     <string name="translation_engine_fallback_note">Gemini no estaba disponible: traducido con %1$s</string>
     <string name="translation_use_free">Usar Google Translate (gratis)</string>
     <string name="pref_translation_fallback_to_free">Usar otro traductor si Gemini falla</string>
-    <string name="pref_translation_fallback_to_free_summary">Si Gemini está saturado o no disponible, la página se traduce con Microsoft Azure (si tienes clave) o con Google Translate</string>
+    <string name="pref_translation_fallback_to_free_summary">Si Gemini está saturado o no disponible, la página se traduce con DeepL o Microsoft Azure (si tienes clave) o con Google Translate</string>
     <string name="translation_engine_azure">Microsoft Azure Translator (necesita clave)</string>
     <string name="translation_missing_azure_key">Añade tu clave de Microsoft Azure Translator en Ajustes → Lector → Traducción de páginas.</string>
     <string name="pref_translation_azure_key">Clave de Microsoft Azure</string>
@@ -581,4 +581,8 @@
     <string name="pref_translation_display_mode">Mostrar la traducción</string>
     <string name="pref_translation_display_overlay">Encima de los globos</string>
     <string name="pref_translation_display_list">Como lista</string>
+    <string name="translation_engine_deepl">DeepL (necesita clave gratuita)</string>
+    <string name="translation_missing_deepl_key">Añade tu clave de DeepL en Ajustes → Lector → Traducción de páginas.</string>
+    <string name="pref_translation_deepl_key">Clave de DeepL</string>
+    <string name="pref_translation_deepl_key_summary">Créala gratis en deepl.com/pro-api (plan DeepL API Free). Opcional si usas Gemini: si Gemini falla, se prueba la primera</string>
 </resources>

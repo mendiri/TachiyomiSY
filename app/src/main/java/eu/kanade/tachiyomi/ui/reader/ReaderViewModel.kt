@@ -1264,10 +1264,17 @@ class ReaderViewModel(
     /** Reads and translates the text of [page], showing the result in a sheet. */
     fun openTranslation(page: ReaderPage?, forceRefresh: Boolean = false) {
         if (page == null) return
-        if (pageTranslator.engine == TranslationEngine.Azure &&
-            readerPreferences.translationAzureKey.get().isBlank()
-        ) {
-            val message = context.stringResource(SYMR.strings.translation_missing_azure_key)
+        val missingKeyMessage = when (pageTranslator.engine) {
+            TranslationEngine.Azure ->
+                SYMR.strings.translation_missing_azure_key
+                    .takeIf { readerPreferences.translationAzureKey.get().isBlank() }
+            TranslationEngine.DeepL ->
+                SYMR.strings.translation_missing_deepl_key
+                    .takeIf { readerPreferences.translationDeepLKey.get().isBlank() }
+            else -> null
+        }
+        if (missingKeyMessage != null) {
+            val message = context.stringResource(missingKeyMessage)
             mutableState.update { it.copy(dialog = Dialog.Translation(page, TranslationResult.Error(message))) }
             return
         }

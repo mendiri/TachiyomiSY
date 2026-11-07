@@ -21,13 +21,16 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -38,7 +41,7 @@ import kotlin.coroutines.resumeWithException
 
 /**
  * Reads the text on the device with ML Kit text recognition and translates it with Google
- * Translate (public web endpoint: free, no account or key) or Microsoft Azure Translator.
+ * Translate (public web endpoint: free, no account or key), DeepL or Microsoft Azure Translator.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -52,21 +55,29 @@ class FreePageTranslator(
     val isAzureConfigured: Boolean
         get() = readerPreferences.translationAzureKey.get().isNotBlank()
 
+    val isDeepLConfigured: Boolean
+        get() = readerPreferences.translationDeepLKey.get().isNotBlank()
+
     /**
      * @param rightToLeft whether the page is read right to left (Japanese manga).
-     * @param useAzure translate with Microsoft Azure instead of Google Translate.
+     * @param service who translates the text: [TranslationEngine.Free] (Google Translate),
+     * [TranslationEngine.Azure] or [TranslationEngine.DeepL].
      */
     suspend fun translate(
         slices: List<PageSlice>,
         rightToLeft: Boolean,
-        useAzure: Boolean,
+        service: TranslationEngine,
     ): List<TranslatedBlock> = withContext(Dispatchers.IO) {
         val recognized = slices.flatMap { recognize(it, rightToLeft) }
         val target = languageCode(readerPreferences.translationTargetLanguage.get())
         if (recognized.isEmpty()) return@withContext emptyList()
-        if (useAzure) {
-            val translations = translateWithAzure(recognized.map { it.original }, target)
-            return@withContext recognized.zip(translations) { block, translation ->
+        val batch = when (service) {
+            TranslationEngine.Azure -> translateWithAzure(recognized.map { it.original }, target)
+            TranslationEngine.DeepL -> translateWithDeepL(recognized.map { it.original }, target)
+            else -> null
+        }
+        if (batch != null) {
+            return@withContext recognized.zip(batch) { block, translation ->
                 block.copy(translation = translation)
             }
         }
@@ -197,6 +208,57 @@ class FreePageTranslator(
         }
     }
 
+    /** Translates all the blocks in one request with the DeepL API (free or pro). */
+    private fun translateWithDeepL(texts: List<String>, target: String): List<String> {
+        val key = readerPreferences.translationDeepLKey.get().trim()
+        if (key.isBlank()) throw TranslationException("Missing DeepL key")
+        // Keys of the free plan end with ":fx" and use their own server
+        val url = if (key.endsWith(":fx")) DEEPL_FREE_URL else DEEPL_PRO_URL
+
+        val body = buildJsonObject {
+            putJsonArray("text") { texts.forEach { add(it) } }
+            put("target_lang", deepLLanguage(target))
+            // Comic dialogue: keep the informal tone of the characters
+            put("formality", "prefer_less")
+        }
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "DeepL-Auth-Key $key")
+            .post(body.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        networkHelper.client.newCall(request).execute().use { response ->
+            val text = response.body.string()
+            if (!response.isSuccessful) {
+                val message = runCatching {
+                    json.parseToJsonElement(text).jsonObject["message"]?.jsonPrimitive?.contentOrNull
+                }.getOrNull()
+                val error = when (response.code) {
+                    403 -> "DeepL (HTTP 403): wrong key"
+                    456 -> "DeepL (HTTP 456): monthly character limit reached"
+                    else -> "DeepL (HTTP ${response.code}): ${message ?: response.message}"
+                }
+                if (response.code == 429 || response.code == 456 || response.code >= 500) {
+                    throw TemporaryTranslationException(error)
+                }
+                throw TranslationException(error)
+            }
+            val translations = json.parseToJsonElement(text).jsonObject["translations"]?.jsonArray
+                ?: throw TranslationException("Unexpected response from DeepL")
+            return texts.indices.map { i ->
+                translations.getOrNull(i)?.jsonObject?.get("text")?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+            }
+        }
+    }
+
+    /** DeepL wants the variant for some languages, in capitals ("ES", "EN-US", "PT-PT"). */
+    private fun deepLLanguage(code: String) = when (code.lowercase(Locale.ROOT)) {
+        "en" -> "EN-US"
+        "pt" -> "PT-PT"
+        "zh" -> "ZH-HANS"
+        else -> code.uppercase(Locale.ROOT)
+    }
+
     private fun translateText(text: String, target: String): String {
         val url = TRANSLATE_URL.toHttpUrl().newBuilder()
             .addQueryParameter("client", "gtx")
@@ -224,6 +286,8 @@ class FreePageTranslator(
     companion object {
         private const val TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
         private const val AZURE_URL = "https://api.cognitive.microsofttranslator.com/translate"
+        private const val DEEPL_FREE_URL = "https://api-free.deepl.com/v2/translate"
+        private const val DEEPL_PRO_URL = "https://api.deepl.com/v2/translate"
         private const val MAX_PARALLEL_REQUESTS = 4
         private const val ROWS_PER_PAGE = 12
         private const val MIN_LETTERS = 2

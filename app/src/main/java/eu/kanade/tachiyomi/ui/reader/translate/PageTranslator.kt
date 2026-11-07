@@ -70,6 +70,9 @@ enum class TranslationEngine(val value: String) {
 
     /** On-device text recognition (ML Kit) + Microsoft Azure Translator. Needs an Azure key. */
     Azure("azure"),
+
+    /** On-device text recognition (ML Kit) + DeepL. Needs a DeepL key (there's a free plan). */
+    DeepL("deepl"),
     ;
 
     companion object {
@@ -109,9 +112,8 @@ class PageTranslator(
         val (page, slices) = decodeSlices(openStream)
         try {
             val (blocks, usedEngine, usedFallback) = when (engine) {
-                TranslationEngine.Free, TranslationEngine.Azure -> {
-                    val useAzure = engine == TranslationEngine.Azure
-                    Triple(free.translate(slices, rightToLeft, useAzure), engine, false)
+                TranslationEngine.Free, TranslationEngine.Azure, TranslationEngine.DeepL -> {
+                    Triple(free.translate(slices, rightToLeft, engine), engine, false)
                 }
                 TranslationEngine.Gemini -> try {
                     Triple(gemini.translate(slices), TranslationEngine.Gemini, false)
@@ -138,20 +140,27 @@ class PageTranslator(
         return page.scale(width, height).also { if (it !== page) page.recycle() }
     }
 
-    /** Azure first when it's set up (official API), Google Translate otherwise or if Azure fails. */
+    /**
+     * Tries the translators that have a key (DeepL, then Azure), then Google Translate, which
+     * needs none.
+     */
     private suspend fun fallback(
         slices: List<PageSlice>,
         rightToLeft: Boolean,
     ): Triple<List<TranslatedBlock>, TranslationEngine, Boolean> {
-        if (free.isAzureConfigured) {
+        val withKey = listOfNotNull(
+            TranslationEngine.DeepL.takeIf { free.isDeepLConfigured },
+            TranslationEngine.Azure.takeIf { free.isAzureConfigured },
+        )
+        for (service in withKey) {
             try {
-                return Triple(free.translate(slices, rightToLeft, true), TranslationEngine.Azure, true)
+                return Triple(free.translate(slices, rightToLeft, service), service, true)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                logcat(LogPriority.WARN, e) { "Azure failed, using Google Translate" }
+                logcat(LogPriority.WARN, e) { "$service failed, trying the next translator" }
             }
         }
-        return Triple(free.translate(slices, rightToLeft, false), TranslationEngine.Free, true)
+        return Triple(free.translate(slices, rightToLeft, TranslationEngine.Free), TranslationEngine.Free, true)
     }
 
     /**

@@ -280,6 +280,8 @@ class ReaderPreferences(
 
     val translationAzureRegion: Preference<String> = preferenceStore.getString("translation_azure_region", "")
 
+    val translationDeepLKey: Preference<String> = preferenceStore.getString("translation_deepl_key", "")
+
     val translationDisplayMode: Preference<String> =
         preferenceStore.getString("translation_display_mode", TRANSLATION_DISPLAY_OVERLAY)
 

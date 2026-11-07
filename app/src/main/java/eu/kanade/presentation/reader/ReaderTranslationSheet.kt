@@ -164,6 +164,7 @@ fun ReaderTranslationSheet(
                             TranslationEngine.Gemini -> stringResource(SYMR.strings.translation_engine_gemini)
                             TranslationEngine.Free -> stringResource(SYMR.strings.translation_engine_free)
                             TranslationEngine.Azure -> stringResource(SYMR.strings.translation_engine_azure)
+                            TranslationEngine.DeepL -> stringResource(SYMR.strings.translation_engine_deepl)
                         }.let {
                             if (outcome.usedFallback) {
                                 stringResource(SYMR.strings.translation_engine_fallback_note, it)
