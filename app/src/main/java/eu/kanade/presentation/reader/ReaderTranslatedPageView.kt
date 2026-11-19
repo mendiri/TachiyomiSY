@@ -22,6 +22,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -124,6 +126,7 @@ fun ReaderTranslatedPageView(
                         outcome = outcome,
                         showTranslations = showTranslations,
                         onCopy = { context.copyText(it.toNoteText(includeTranslationWhenCopying)) },
+                        onShare = { context.shareText(it.toNoteText(includeTranslationWhenCopying)) },
                     )
                 }
             }
@@ -216,6 +219,7 @@ private fun TranslatedPage(
     outcome: TranslationOutcome,
     showTranslations: Boolean,
     onCopy: (TranslatedBlock) -> Unit,
+    onShare: (TranslatedBlock) -> Unit,
 ) {
     val image = outcome.image ?: return
     val bitmap = remember(image) { image.asImageBitmap() }
@@ -247,6 +251,7 @@ private fun TranslatedPage(
                         Bubble(
                             block = block,
                             onCopy = { onCopy(block) },
+                            onShare = { onShare(block) },
                             modifier = Modifier
                                 .offset(x = width * box.left, y = height * box.top)
                                 .size(
@@ -266,17 +271,24 @@ private fun TranslatedPage(
 private fun Bubble(
     block: TranslatedBlock,
     onCopy: () -> Unit,
+    onShare: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showOriginal by remember(block) { mutableStateOf(false) }
+    // A long press selects the bubble and shows what can be done with its text
+    var selected by remember(block) { mutableStateOf(false) }
     val shape = RoundedCornerShape(10.dp)
     Box(
         modifier = modifier
             .background(if (showOriginal) Color(0xFFFFF6D5) else Color.White, shape)
-            .border(1.dp, Color(0x66000000), shape)
+            .border(
+                width = if (selected) 3.dp else 1.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary else Color(0x66000000),
+                shape = shape,
+            )
             .combinedClickable(
                 onClick = { showOriginal = !showOriginal },
-                onLongClick = onCopy,
+                onLongClick = { selected = true },
             )
             .padding(3.dp),
         contentAlignment = Alignment.Center,
@@ -297,6 +309,27 @@ private fun Bubble(
                 val wordWidth = measurer.measure(longestWord, style.copy(fontSize = MAX_FONT_SIZE.sp)).size.width
                 val ratio = if (wordWidth > 0) availableWidth.toFloat() / wordWidth else 1f
                 (MAX_FONT_SIZE * min(1f, ratio * 0.95f)).coerceAtLeast(MIN_FONT_SIZE / 2)
+            }
+            DropdownMenu(
+                expanded = selected,
+                onDismissRequest = { selected = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(MR.strings.action_copy_to_clipboard)) },
+                    leadingIcon = { Icon(MaterialSymbols.Rounded.ContentCopy, contentDescription = null) },
+                    onClick = {
+                        selected = false
+                        onCopy()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(MR.strings.action_share)) },
+                    leadingIcon = { Icon(MaterialSymbols.Rounded.Share, contentDescription = null) },
+                    onClick = {
+                        selected = false
+                        onShare()
+                    },
+                )
             }
             BasicText(
                 text = text,
