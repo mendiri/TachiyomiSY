@@ -59,6 +59,7 @@ import eu.kanade.presentation.reader.OrientationSelectDialog
 import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.presentation.reader.ReaderPageActionsDialog
 import eu.kanade.presentation.reader.ReaderPageIndicator
+import eu.kanade.presentation.reader.ReaderSavedNotesSheet
 import eu.kanade.presentation.reader.ReaderTranslatedPageView
 import eu.kanade.presentation.reader.ReaderTranslationSheet
 import eu.kanade.presentation.reader.ReadingModeSelectDialog
@@ -86,6 +87,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences.Companion.TRANSLATION_DISPLAY_OVERLAY
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.translate.TranslatedBlock
 import eu.kanade.tachiyomi.ui.reader.translate.TranslationEngine
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
@@ -392,10 +394,24 @@ class ReaderActivity : BaseActivity() {
                 )
             }
 
+            is ReaderViewModel.Dialog.SavedNotes -> {
+                val savedNotes by viewModel.savedNotes.collectAsState()
+                val includeTranslation by readerPreferences.translationCopyIncludesTranslation.collectAsState()
+                ReaderSavedNotesSheet(
+                    notes = savedNotes,
+                    finishedChapter = (state.dialog as ReaderViewModel.Dialog.SavedNotes).finishedChapter,
+                    includeTranslation = includeTranslation,
+                    onRemove = viewModel::removeSavedNote,
+                    onClear = viewModel::clearSavedNotes,
+                    onDismissRequest = onDismissRequest,
+                )
+            }
+
             is ReaderViewModel.Dialog.Translation -> {
                 val dialog = state.dialog as ReaderViewModel.Dialog.Translation
                 val includeTranslation by readerPreferences.translationCopyIncludesTranslation.collectAsState()
                 val displayMode by readerPreferences.translationDisplayMode.collectAsState()
+                val savedNotes by viewModel.savedNotes.collectAsState()
                 var showList by remember(dialog.page) { mutableStateOf(false) }
                 val pageTitle = listOfNotNull(
                     state.manga?.title,
@@ -421,6 +437,9 @@ class ReaderActivity : BaseActivity() {
                         onPrevious = { translateAdjacentPage(previousPage) },
                         onNext = { translateAdjacentPage(nextPage) },
                         onShowList = { showList = true },
+                        savedNotesCount = savedNotes.size,
+                        onSaveBlock = { saveNote(dialog.page, it) },
+                        onShowSavedNotes = viewModel::openSavedNotes,
                         onDismissRequest = onDismissRequest,
                     )
                 } else {
@@ -438,6 +457,7 @@ class ReaderActivity : BaseActivity() {
                             readerPreferences.translationEngine.set(TranslationEngine.Free.value)
                             viewModel.openTranslation(dialog.page)
                         },
+                        onSaveBlock = { saveNote(dialog.page, it) },
                     )
                 }
             }
@@ -912,6 +932,11 @@ class ReaderActivity : BaseActivity() {
                 toast(SYMR.strings.eh_boost_invalid_loader)
             }
         }
+    }
+
+    private fun saveNote(page: ReaderPage, block: TranslatedBlock) {
+        viewModel.saveNote(page, block)
+        toast(stringResource(SYMR.strings.translation_saved_for_later, viewModel.savedNotes.value.size))
     }
 
     /** Moves the reader to [page] and translates it. */

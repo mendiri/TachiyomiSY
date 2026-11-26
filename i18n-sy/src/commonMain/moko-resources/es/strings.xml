@@ -585,4 +585,12 @@
     <string name="translation_missing_deepl_key">Añade tu clave de DeepL en Ajustes → Lector → Traducción de páginas.</string>
     <string name="pref_translation_deepl_key">Clave de DeepL</string>
     <string name="pref_translation_deepl_key_summary">Créala gratis en deepl.com/pro-api (plan DeepL API Free). Opcional si usas Gemini: si Gemini falla, se prueba la primera</string>
+    <string name="action_save_for_later">Guardar para compartir</string>
+    <string name="translation_saved_for_later">Guardado para compartir (%1$d)</string>
+    <string name="saved_notes_title">Textos guardados (%1$d)</string>
+    <string name="saved_notes_finished_chapter">Has terminado %1$s. Comparte los textos que guardaste:</string>
+    <string name="saved_notes_empty">No hay textos guardados. Mantén pulsado un bocadillo y elige «Guardar para compartir».</string>
+    <string name="saved_notes_clear">Vaciar la lista</string>
+    <string name="saved_notes_clear_confirm">¿Borrar todos los textos guardados?</string>
+    <string name="saved_notes_hint">Los textos siguen guardados hasta que vacíes la lista, aunque cierres la app.</string>
 </resources>

@@ -732,4 +732,12 @@ When this option is disabled, the gestures still work the same way, but those in
     <string name="translation_missing_deepl_key">Add your DeepL key in Settings → Reader → Page translation.</string>
     <string name="pref_translation_deepl_key">DeepL key</string>
     <string name="pref_translation_deepl_key_summary">Create one for free at deepl.com/pro-api (DeepL API Free plan). Optional if Gemini is used: it's tried first when Gemini fails</string>
+    <string name="action_save_for_later">Save to share later</string>
+    <string name="translation_saved_for_later">Saved to share later (%1$d)</string>
+    <string name="saved_notes_title">Saved texts (%1$d)</string>
+    <string name="saved_notes_finished_chapter">You finished %1$s. Share the texts you saved:</string>
+    <string name="saved_notes_empty">No saved texts. Long press a bubble and choose \"Save to share later\".</string>
+    <string name="saved_notes_clear">Empty the list</string>
+    <string name="saved_notes_clear_confirm">Remove all the saved texts?</string>
+    <string name="saved_notes_hint">The texts stay saved until you empty the list, even if the app is closed.</string>
 </resources>

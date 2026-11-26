@@ -282,6 +282,9 @@ class ReaderPreferences(
 
     val translationDeepLKey: Preference<String> = preferenceStore.getString("translation_deepl_key", "")
 
+    /** Texts saved to share them later, as JSON (see SavedNotesStore). */
+    val translationSavedNotes: Preference<String> = preferenceStore.getString("translation_saved_notes", "")
+
     val translationDisplayMode: Preference<String> =
         preferenceStore.getString("translation_display_mode", TRANSLATION_DISPLAY_OVERLAY)
 

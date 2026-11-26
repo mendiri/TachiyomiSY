@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -55,7 +57,9 @@ import eu.kanade.tachiyomi.ui.reader.translate.TranslatedBlock
 import eu.kanade.tachiyomi.ui.reader.translate.TranslationEngine
 import eu.kanade.tachiyomi.ui.reader.translate.TranslationOutcome
 import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.rounded.BookmarkAdd
 import mihon.icons.materialsymbols.rounded.Close
+import mihon.icons.materialsymbols.rounded.CollectionsBookmark
 import mihon.icons.materialsymbols.rounded.ContentCopy
 import mihon.icons.materialsymbols.rounded.FormatListNumbered
 import mihon.icons.materialsymbols.rounded.Share
@@ -80,6 +84,9 @@ fun ReaderTranslatedPageView(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onShowList: () -> Unit,
+    savedNotesCount: Int,
+    onSaveBlock: (TranslatedBlock) -> Unit,
+    onShowSavedNotes: () -> Unit,
     onDismissRequest: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -127,6 +134,7 @@ fun ReaderTranslatedPageView(
                         showTranslations = showTranslations,
                         onCopy = { context.copyText(it.toNoteText(includeTranslationWhenCopying)) },
                         onShare = { context.shareText(it.toNoteText(includeTranslationWhenCopying)) },
+                        onSave = onSaveBlock,
                     )
                 }
             }
@@ -155,6 +163,18 @@ fun ReaderTranslatedPageView(
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
                         )
+                    }
+                    IconButton(onClick = onShowSavedNotes) {
+                        BadgedBox(
+                            badge = {
+                                if (savedNotesCount > 0) Badge { Text(savedNotesCount.toString()) }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = MaterialSymbols.Rounded.CollectionsBookmark,
+                                contentDescription = stringResource(SYMR.strings.saved_notes_title, savedNotesCount),
+                            )
+                        }
                     }
                     IconButton(onClick = onShowList, enabled = outcome != null) {
                         Icon(
@@ -220,6 +240,7 @@ private fun TranslatedPage(
     showTranslations: Boolean,
     onCopy: (TranslatedBlock) -> Unit,
     onShare: (TranslatedBlock) -> Unit,
+    onSave: (TranslatedBlock) -> Unit,
 ) {
     val image = outcome.image ?: return
     val bitmap = remember(image) { image.asImageBitmap() }
@@ -252,6 +273,7 @@ private fun TranslatedPage(
                             block = block,
                             onCopy = { onCopy(block) },
                             onShare = { onShare(block) },
+                            onSave = { onSave(block) },
                             modifier = Modifier
                                 .offset(x = width * box.left, y = height * box.top)
                                 .size(
@@ -272,6 +294,7 @@ private fun Bubble(
     block: TranslatedBlock,
     onCopy: () -> Unit,
     onShare: () -> Unit,
+    onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showOriginal by remember(block) { mutableStateOf(false) }
@@ -328,6 +351,14 @@ private fun Bubble(
                     onClick = {
                         selected = false
                         onShare()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(SYMR.strings.action_save_for_later)) },
+                    leadingIcon = { Icon(MaterialSymbols.Rounded.BookmarkAdd, contentDescription = null) },
+                    onClick = {
+                        selected = false
+                        onSave()
                     },
                 )
             }

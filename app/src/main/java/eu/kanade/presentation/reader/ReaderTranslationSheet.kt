@@ -40,6 +40,7 @@ import eu.kanade.tachiyomi.ui.reader.translate.TranslatedBlock
 import eu.kanade.tachiyomi.ui.reader.translate.TranslationEngine
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import mihon.icons.materialsymbols.MaterialSymbols
+import mihon.icons.materialsymbols.rounded.BookmarkAdd
 import mihon.icons.materialsymbols.rounded.ContentCopy
 import mihon.icons.materialsymbols.rounded.Refresh
 import mihon.icons.materialsymbols.rounded.Share
@@ -61,6 +62,7 @@ fun ReaderTranslationSheet(
     onRetry: () -> Unit,
     onSaveApiKey: (String) -> Unit,
     onUseFreeTranslator: () -> Unit,
+    onSaveBlock: (TranslatedBlock) -> Unit,
 ) {
     val context = LocalContext.current
 
@@ -205,6 +207,7 @@ fun ReaderTranslationSheet(
                                 TranslatedBlockItem(
                                     block = block,
                                     onCopy = { context.copyText(format(block)) },
+                                    onSave = { onSaveBlock(block) },
                                     onShare = { context.shareText(format(block)) },
                                 )
                             }
@@ -221,6 +224,7 @@ private fun TranslatedBlockItem(
     block: TranslatedBlock,
     onCopy: () -> Unit,
     onShare: () -> Unit,
+    onSave: () -> Unit,
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -253,6 +257,12 @@ private fun TranslatedBlockItem(
                     Icon(
                         imageVector = MaterialSymbols.Rounded.Share,
                         contentDescription = stringResource(MR.strings.action_share),
+                    )
+                }
+                IconButton(onClick = onSave) {
+                    Icon(
+                        imageVector = MaterialSymbols.Rounded.BookmarkAdd,
+                        contentDescription = stringResource(SYMR.strings.action_save_for_later),
                     )
                 }
             }

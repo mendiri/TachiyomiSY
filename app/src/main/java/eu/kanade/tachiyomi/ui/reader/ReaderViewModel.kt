@@ -58,6 +58,9 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.translate.PageTranslator
+import eu.kanade.tachiyomi.ui.reader.translate.SavedNote
+import eu.kanade.tachiyomi.ui.reader.translate.SavedNotesStore
+import eu.kanade.tachiyomi.ui.reader.translate.TranslatedBlock
 import eu.kanade.tachiyomi.ui.reader.translate.TranslationEngine
 import eu.kanade.tachiyomi.ui.reader.translate.TranslationOutcome
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
@@ -88,6 +91,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -175,6 +179,7 @@ class ReaderViewModel(
     private val cbzCrypto: CbzCrypto,
     // SY <--
     private val pageTranslator: PageTranslator,
+    private val savedNotesStore: SavedNotesStore,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -727,6 +732,16 @@ class ReaderViewModel(
         updateChapterProgress(selectedChapter, page/* SY --> */, hasExtraPage/* SY <-- */)
 
         if (selectedChapter != getCurrentChapter()) {
+            // Moving on to the next chapter: offer to share the texts saved while reading this one
+            val finishedChapter = getCurrentChapter()
+            if (
+                finishedChapter != null &&
+                selectedChapter.chapter.id == state.value.viewerChapters?.nextChapter?.chapter?.id &&
+                savedNotesStore.hasNotesFor(finishedChapter.chapter.id) &&
+                state.value.dialog == null
+            ) {
+                mutableState.update { it.copy(dialog = Dialog.SavedNotes(finishedChapter.chapter.name)) }
+            }
             logcat { "Setting ${selectedChapter.chapter.url} as active" }
             loadNewChapter(selectedChapter)
         }
@@ -1352,6 +1367,32 @@ class ReaderViewModel(
         }
     }
 
+    /** Texts saved to be shared later. */
+    val savedNotes: StateFlow<List<SavedNote>> = savedNotesStore.notes
+
+    /** Keeps the text of [block], found on [page], to share it later with the other saved ones. */
+    fun saveNote(page: ReaderPage, block: TranslatedBlock) {
+        savedNotesStore.add(
+            SavedNote(
+                id = System.currentTimeMillis(),
+                mangaTitle = manga?.title.orEmpty(),
+                chapterId = page.chapter.chapter.id,
+                chapterName = page.chapter.chapter.name,
+                pageNumber = page.number,
+                original = block.original,
+                translation = block.translation,
+            ),
+        )
+    }
+
+    fun removeSavedNote(note: SavedNote) = savedNotesStore.remove(note.id)
+
+    fun clearSavedNotes() = savedNotesStore.clear()
+
+    fun openSavedNotes() {
+        mutableState.update { it.copy(dialog = Dialog.SavedNotes(finishedChapter = null)) }
+    }
+
     /** The page [offset] pages away from [page] in the same chapter, if any. */
     fun adjacentPage(page: ReaderPage, offset: Int): ReaderPage? {
         return page.chapter.pages?.getOrNull(page.index + offset)
@@ -1726,6 +1767,9 @@ class ReaderViewModel(
         data object RetryAllHelp : Dialog
         data object BoostPageHelp : Dialog
         // SY <--
+
+        /** The saved texts, shown when [finishedChapter] (if any) was just finished. */
+        data class SavedNotes(val finishedChapter: String?) : Dialog
 
         data class Translation(
             val page: ReaderPage,
